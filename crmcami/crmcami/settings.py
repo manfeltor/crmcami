@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
-from .authvars import DB_NAME, DB_USR, DB_PASS, DB_HOST, DB_PORT, SECRET_KEY, DEBUG
+from .authvars import DB_NAME, DB_USR, DB_PASS, DB_HOST, DB_PORT, SECRET_KEY, DEBUG, APPHOST
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -27,18 +27,23 @@ SECRET_KEY = SECRET_KEY
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = DEBUG
-CSRF_COOKIE_SECURE = True  # Ensures CSRF cookie is only sent over HTTPS
-SESSION_COOKIE_SECURE = True  # Ensures session cookies are only sent over HTTPS
+# HTTPS/cookies: seguras en prod, laxas en local (para poder loguear sobre http).
+CSRF_COOKIE_SECURE = not DEBUG       # cookie CSRF solo por HTTPS en prod
+SESSION_COOKIE_SECURE = not DEBUG    # cookie de sesion solo por HTTPS en prod
+SECURE_SSL_REDIRECT = not DEBUG      # forzar HTTPS en prod
 
-CSRF_TRUSTED_ORIGINS = [
-    # production server origin
-]
+# Cloud Run termina el TLS y reenvia por HTTP interno; este header le dice a
+# Django que la request original fue HTTPS (necesario para el redirect y las cookies secure).
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1'
-    # production host
-    ]
+# APPHOST = host de Cloud Run; se setea como env var recien cuando exista el servicio.
+CSRF_TRUSTED_ORIGINS = []
+if APPHOST:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{APPHOST}')
+
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+if APPHOST:
+    ALLOWED_HOSTS.append(APPHOST)
 
 
 # Application definition
@@ -92,10 +97,31 @@ WSGI_APPLICATION = 'crmcami.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
+# MySQL, mismo motor en local y prod. La diferencia local/prod es SOLO DB_HOST:
+#   local: DB_HOST=127.0.0.1               -> conexion TCP
+#   prod : DB_HOST=/cloudsql/PROJ:REG:INS  -> Django ve el "/" y usa socket unix (Cloud SQL)
+# Secretos montados como env vars (Google Secret Manager) en Cloud Run.
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': DB_NAME,
+        'USER': DB_USR,
+        'PASSWORD': DB_PASS,
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
+        'CONN_MAX_AGE': 0,   # Cloud Run serverless: conexion nueva por request
+                             # (evita agotar el max_connections de Cloud SQL).
+        'OPTIONS': {
+            'sql_mode': 'STRICT_TRANS_TABLES',
+            'charset': 'utf8mb4',
+        },
     }
 }
 
