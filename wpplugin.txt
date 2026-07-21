@@ -1,0 +1,95 @@
+<?php
+/*
+Plugin Name: Custom Form API
+Description: A custom REST API endpoint for form submissions.
+Version: 1.2
+Author: Felipe Torres
+*/
+
+add_action('rest_api_init', function () {
+    register_rest_route('custom/v1', '/form-submissions/(?P<id>\d+)', array(
+        'methods' => 'GET',
+        'callback' => 'get_form_submissions',
+        'permission_callback' => function () {
+            return current_user_can('edit_posts'); // Adjust permissions as needed
+        }
+    ));
+});
+
+function get_form_submissions($data) {
+    global $wpdb;
+
+    $form_id = $data['id'];
+    $table_prefix = 'wp_i2308_';  // Use your specific table prefix here
+
+    // Retrieve the entries from the frm_items table
+    $entries = $wpdb->get_results($wpdb->prepare(
+        "SELECT id, created_at, updated_at FROM {$table_prefix}frm_items WHERE form_id = %d",
+        $form_id
+    ));
+
+    // Return the raw SQL query
+    $last_query = $wpdb->last_query;
+
+    // Log the number of entries found
+    $num_entries = count($entries);
+
+    if (empty($entries)) {
+        return new WP_REST_Response(array(
+            'message' => 'No form submissions found',
+            'form_id' => $form_id,
+            'sql_query' => $last_query,
+            'num_entries' => $num_entries
+        ), 404);
+    }
+
+    $form_submissions = [];
+
+    // Loop through each entry
+    foreach ($entries as $entry) {
+        // Retrieve the meta data for each entry
+        $meta_data = $wpdb->get_results($wpdb->prepare(
+            "SELECT field_id, meta_value FROM {$table_prefix}frm_item_metas WHERE item_id = %d",
+            $entry->id
+        ));
+
+        if (empty($meta_data)) {
+            continue;
+        }
+
+        $submission = [
+            'id' => $entry->id,
+            'created_at' => $entry->created_at,
+            'updated_at' => $entry->updated_at,
+        ];
+
+        // Add each meta data to the submission array
+        foreach ($meta_data as $meta) {
+            $field_name = $wpdb->get_var($wpdb->prepare(
+                "SELECT name FROM {$table_prefix}frm_fields WHERE id = %d",
+                $meta->field_id
+            ));
+            if ($field_name) {
+                $submission[$field_name] = $meta->meta_value;
+            }
+        }
+
+        $form_submissions[] = $submission;
+    }
+
+    if (!empty($form_submissions)) {
+        return new WP_REST_Response(array(
+            'message' => 'Form submissions retrieved successfully',
+            'form_submissions' => $form_submissions,
+            'sql_query' => $last_query,
+            'num_entries' => $num_entries
+        ), 200);
+    } else {
+        return new WP_REST_Response(array(
+            'message' => 'Form submissions were retrieved but the data array is empty.',
+            'form_id' => $form_id,
+            'sql_query' => $last_query,
+            'num_entries' => $num_entries
+        ), 404);
+    }
+}
