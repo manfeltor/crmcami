@@ -79,7 +79,7 @@ ROOT_URLCONF = 'crmcami.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],  # templates propios (ej: login)
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -164,6 +164,6 @@ STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
     # os.path.join(BASE_DIR, 'appinfo/templates/static'),
-    os.path.join(BASE_DIR, r'templates'),
+    os.path.join(BASE_DIR, 'static'),   # estaticos propios (logo, bundles JS...); static != templates
     # os.path.join(BASE_DIR, r'media'),    
 ]
