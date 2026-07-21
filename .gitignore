@@ -1,0 +1,132 @@
+# ==========================================================================
+#  .gitignore — CRM Intralog  (Django + React/HTML + GCP)
+#  Patrones sin "/" inicial matchean en CUALQUIER subcarpeta (raiz-agnostico),
+#  asi funciona igual si el repo se rootea en crm_cami/ o en crmcami/.
+# ==========================================================================
+
+# --- Secretos / entorno ----------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+service-account*.json
+gcp-*.json
+client_secret*.json
+
+# --- Datos sensibles (PII de leads reales) — NUNCA versionar ---------------
+CRM Intralog - datos*.json
+CRM_Intralog.html
+CRM Intralog.html
+*backup*.json
+*back*up*.xlsx
+Seguimiento comercial*.xlsx
+OneDrive_*.zip
+data/legacy/
+
+# --- Python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Entornos virtuales ----------------------------------------------------
+crmcamienv/
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Django ----------------------------------------------------------------
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+media/
+staticfiles/
+static_root/
+# NOTA: las migraciones SI van al repo — no se ignoran.
+
+# --- Node / frontend (build de Vite para las islas React) ------------------
+node_modules/
+dist/
+.vite/
+.parcel-cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+# bundles compilados (si algun dia se buildean a static/js):
+# static/js/*.js
+
+# --- Testing / cobertura / type-check / linters ----------------------------
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+.mypy_cache/
+.dmypy.json
+.pyre/
+.ruff_cache/
+.hypothesis/
+
+# --- Jupyter (sos analista, por si aparece) --------------------------------
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# --- Editores / IDE --------------------------------------------------------
+.idea/
+.vscode/
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+
+# --- Sistemas operativos ---------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# --- Varios ----------------------------------------------------------------
+*.bak
+*.tmp
+*.orig
+.cache/

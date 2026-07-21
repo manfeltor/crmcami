@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRM Ventas - Intralog</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root{ --ink:#22262A; --red:#E2231A; --paper:#f4f5f7; --line:#e4e7eb; }
+  body{background:var(--paper);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:var(--ink);}
+  ::-webkit-scrollbar{height:9px;width:9px}
+  ::-webkit-scrollbar-thumb{background:#c4c9cf;border-radius:9px}
+  .fade-in{animation:fi .25s ease}
+  @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect, useRef } = React;
+
+const SERVICIOS = ["Almacenamiento", "Cross-docking"];
+const ORIGENES  = ["Google Ads", "Meta Ads", "Redes sociales", "Referido", "Sitio web", "SIGNOS"];
+const ESTADOS = ["1. Datos pendientes","2. Pendiente cotizar","3. Cotizado","4. Interesado","5. Negociando / Re-cotizar","6. Venta ganada","7. No viable","8. No avanzó"];
+const SUB_NOAVANZO = ["Sin respuesta","Eligió competencia","Cotización fuera de presupuesto","Proyecto pospuesto","Tardanza comercial","Otro"];
+const SUB_NOVIABLE = ["SENASA","ANMAT","RENPRE","Transporte","Fuera de alcance geográfico","Otro"];
+const RESPONSABLES = ["Camila","Cesar"];
+const ESTADO_COLOR = {"1. Datos pendientes":"#6b7280","2. Pendiente cotizar":"#d97706","3. Cotizado":"#2563eb","4. Interesado":"#7c3aed","5. Negociando / Re-cotizar":"#0891b2","6. Venta ganada":"#059669","7. No viable":"#dc2626","8. No avanzó":"#9ca3af"};
+const ESTADOS_FINALES = ["6. Venta ganada","7. No viable","8. No avanzó"];
+const ABIERTOS = ["1. Datos pendientes","2. Pendiente cotizar","3. Cotizado","4. Interesado","5. Negociando / Re-cotizar"];
+const NOCOM_CATS = ["Empleo / RRHH","Proveedores","Otro / Spam"];
+const LOGO_B64 = "data:image/png;base64,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";
+const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+const BASE_HEADERS = ["Cod.Periodo","Fecha","Cliente","Servicio","Mail","Telefono","Origen","Sub-Origen","Resp","Estado","Comentarios / Avances /  Notas"];
+const EXTRA_HEADERS = ["Sub-Estado","Fecha ult. estado"];
+const EXPORT_HEADERS = ["Cod.Periodo","Fecha","Cliente","Servicio","Mail","Telefono","Origen","Sub-Origen","Resp","Estado","Sub-Estado","Comentarios / Avances /  Notas","Fecha ult. estado"];
+const STORAGE_KEY = "intralog_crm_v3";
+const META_KEY = "intralog_crm_meta_v3";
+
+function pad2(x){ return String(x).padStart(2,"0"); }
+function isoFromDate(d){ return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate()); }
+const todayStr = () => isoFromDate(new Date());
+const currentMonthKey = () => todayStr().slice(0,7);
+
+function normServicio(s){
+  if(!s) return "";
+  const t = ("" + s).toLowerCase();
+  if(t.indexOf("cross")>=0 || t.indexOf("croos")>=0) return "Cross-docking";
+  if(t.indexOf("almac")>=0 || t.indexOf("fulfil")>=0) return "Almacenamiento";
+  return s;
+}
+function mapEstado(raw){
+  const t = ("" + (raw||"")).toLowerCase();
+  if(t.indexOf("ganada")>=0) return "6. Venta ganada";
+  if(t.indexOf("no viable")>=0) return "7. No viable";
+  if(t.indexOf("no avanz")>=0 || t.indexOf("sin respuesta")>=0) return "8. No avanzó";
+  if(t.indexOf("negoci")>=0 || t.indexOf("re-cotiz")>=0 || t.indexOf("recotiz")>=0) return "5. Negociando / Re-cotizar";
+  if(t.indexOf("interesad")>=0) return "4. Interesado";
+  if(t.indexOf("cotizado")>=0) return "3. Cotizado";
+  if(t.indexOf("pend")>=0 && t.indexOf("cotiz")>=0) return "2. Pendiente cotizar";
+  if(t.indexOf("dato")>=0 || t.indexOf("pend")>=0) return "1. Datos pendientes";
+  return "1. Datos pendientes";
+}
+function mapResp(raw){
+  const t = ("" + (raw||"")).toLowerCase();
+  if(t.indexOf("cami")>=0) return "Camila";
+  if(t.indexOf("cesar")>=0 || t.indexOf("cés")>=0) return "Cesar";
+  return raw || "";
+}
+function codPeriodo(fecha){
+  if(!fecha) return "";
+  const d = new Date(fecha + "T00:00:00");
+  if(isNaN(d)) return "";
+  return String(d.getFullYear()).slice(-2) + pad2(d.getMonth()+1) + " - " + MESES[d.getMonth()];
+}
+const monthKey = (fecha)=> fecha ? ("" + fecha).slice(0,7) : "";
+function monthLabel(key){
+  if(!key) return "Sin fecha";
+  const parts = key.split("-");
+  return MESES[(+parts[1])-1] + " " + parts[0];
+}
+function shortMonth(key){
+  if(!key) return "-";
+  const p = key.split("-");
+  return MESES[(+p[1])-1].slice(0,3) + " " + p[0].slice(-2);
+}
+function daysSince(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr + "T00:00:00");
+  if(isNaN(d)) return null;
+  return Math.floor((new Date(todayStr() + "T00:00:00") - d) / 86400000);
+}
+function fmtDT(iso){
+  if(!iso) return "-";
+  try{ return new Date(iso).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }catch(e){ return iso; }
+}
+function lastActivityDate(r){
+  let best = r.estadoFecha || r.fecha || "";
+  (r.historial||[]).forEach(function(e){ const d=(""+e.ts).slice(0,10); if(d>best) best=d; });
+  return best;
+}
+const isFinal = (estado)=> ESTADOS_FINALES.indexOf(estado) >= 0;
+function isStale(r){
+  if(isFinal(r.estado)) return false;
+  const d = daysSince(lastActivityDate(r));
+  return d !== null && d > 30;
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function waDigits(tel){
+  let n = ("" + tel).replace(/[^0-9]/g, "");
+  if(!n) return "";
+  n = n.replace(/^0+/, "");
+  if(n.indexOf("54") === 0){ return "549" + n.slice(2).replace(/^9/, ""); }
+  return "549" + n;
+}
+function hex2rgb(h){ h=("" + h).replace("#",""); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+function buildLineChartDataURL(labels, values){
+  const cv = document.createElement("canvas");
+  const W=900, H=360; cv.width=W; cv.height=H;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,W,H);
+  const padL=50, padR=30, padT=40, padB=50;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  let maxV=1; values.forEach(function(v){ if(v>maxV) maxV=v; });
+  ctx.strokeStyle="#e4e7eb"; ctx.lineWidth=1; ctx.fillStyle="#9aa1a8"; ctx.font="14px Arial"; ctx.textAlign="right"; ctx.textBaseline="middle";
+  for(let g=0; g<=4; g++){ const yy=padT+plotH*g/4; ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(W-padR,yy); ctx.stroke(); ctx.fillText(String(Math.round(maxV*(4-g)/4)), padL-8, yy); }
+  const n=labels.length;
+  const xAt=function(i){ return n===1 ? padL+plotW/2 : padL + plotW*i/(n-1); };
+  const yAt=function(v){ return padT + plotH*(1 - v/maxV); };
+  ctx.strokeStyle="#E2231A"; ctx.lineWidth=3; ctx.beginPath();
+  values.forEach(function(v,i){ const x=xAt(i), y=yAt(v); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+  ctx.stroke();
+  ctx.textAlign="center";
+  values.forEach(function(v,i){ const x=xAt(i), y=yAt(v);
+    ctx.fillStyle="#E2231A"; ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#22262A"; ctx.font="bold 17px Arial"; ctx.textBaseline="bottom"; ctx.fillText(String(v), x, y-9);
+    ctx.fillStyle="#6b7280"; ctx.font="13px Arial"; ctx.textBaseline="top"; ctx.fillText(labels[i], x, H-padB+8);
+  });
+  return cv.toDataURL("image/png", 1.0);
+}
+function buildMultiLineChartDataURL(labels, series){
+  const cv = document.createElement("canvas");
+  const W=1000, H=340; cv.width=W; cv.height=H;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,W,H);
+  const padL=46, padR=24, padT=54, padB=60;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  let maxV=1; series.forEach(function(s){ s.values.forEach(function(v){ if(v>maxV) maxV=v; }); });
+  ctx.strokeStyle="#e4e7eb"; ctx.lineWidth=1; ctx.fillStyle="#9aa1a8"; ctx.font="13px Arial"; ctx.textAlign="right"; ctx.textBaseline="middle";
+  for(let g=0;g<=4;g++){ const yy=padT+plotH*g/4; ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(W-padR,yy); ctx.stroke(); ctx.fillText(String(Math.round(maxV*(4-g)/4)), padL-8, yy); }
+  const n=labels.length;
+  const xAt=function(i){ return n===1 ? padL+plotW/2 : padL+plotW*i/(n-1); };
+  const yAt=function(v){ return padT+plotH*(1-v/maxV); };
+  let lx=padL; const ly=24;
+  ctx.textAlign="left"; ctx.textBaseline="middle"; ctx.font="bold 14px Arial";
+  series.forEach(function(s){ ctx.fillStyle=s.color; ctx.fillRect(lx, ly-7, 14, 14); ctx.fillStyle="#22262A"; ctx.fillText(s.name, lx+20, ly); lx += 34 + ctx.measureText(s.name).width; });
+  series.forEach(function(s){
+    ctx.strokeStyle=s.color; ctx.lineWidth=3; ctx.beginPath();
+    s.values.forEach(function(v,i){ const x=xAt(i), y=yAt(v); if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+    ctx.stroke();
+    ctx.fillStyle=s.color; ctx.textAlign="center"; ctx.textBaseline="bottom"; ctx.font="bold 14px Arial";
+    s.values.forEach(function(v,i){ const x=xAt(i), y=yAt(v); ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill(); ctx.fillText(String(v), x, y-7); });
+  });
+  ctx.textAlign="center"; ctx.textBaseline="top";
+  labels.forEach(function(lb,i){
+    ctx.fillStyle="#6b7280"; ctx.font="12px Arial"; ctx.fillText(lb, xAt(i), H-padB+10);
+    let tot=0; series.forEach(function(s){ tot+=(s.values[i]||0); });
+    ctx.fillStyle="#22262A"; ctx.font="bold 13px Arial"; ctx.fillText("Total: "+tot, xAt(i), H-padB+26);
+  });
+  return cv.toDataURL("image/png", 1.0);
+}
+
+const SEED = [
+  {"fecha":"2026-06-18","cliente":"Acme Logística SA","servicio":"Almacenamiento","mail":"contacto@acme-demo.example","telefono":"1155550001","origen":"Google Ads","subOrigen":"Landing page","resp":"Camila","estado":"1. Datos pendientes","comentarios":""},
+  {"fecha":"2026-06-02","cliente":"Distribuidora Ejemplo SRL","servicio":"Cross-docking","mail":"ventas@distri-ejemplo.example","telefono":"1155550002","origen":"Meta Ads","subOrigen":"Formulario web","resp":"Cesar","estado":"2. Pendiente cotizar","comentarios":"Pidió cotización por 200 pallets."},
+  {"fecha":"2026-05-20","cliente":"Importadora Ficticia SA","servicio":"Almacenamiento","mail":"compras@import-ficticia.example","telefono":"1155550003","origen":"Referido","subOrigen":"Cliente actual","resp":"Camila","estado":"3. Cotizado","comentarios":"Cotización enviada 20/05."},
+  {"fecha":"2026-05-05","cliente":"Textiles Prueba SRL","servicio":"Almacenamiento","mail":"info@textiles-prueba.example","telefono":"1155550004","origen":"Redes sociales","subOrigen":"","resp":"Cesar","estado":"4. Interesado","comentarios":"Quiere visita al depósito."},
+  {"fecha":"2026-04-10","cliente":"Alimentos Demo SA","servicio":"Cross-docking","mail":"logistica@alimentos-demo.example","telefono":"1155550005","origen":"SIGNOS","subOrigen":"Landing page","resp":"Camila","estado":"5. Negociando / Re-cotizar","comentarios":"Negociando precio por volumen."},
+  {"fecha":"2026-03-22","cliente":"Norte Mayorista SRL","servicio":"Almacenamiento","mail":"gerencia@norte-mayorista.example","telefono":"1155550006","origen":"Referido","subOrigen":"Proveedor","resp":"Cesar","estado":"6. Venta ganada","comentarios":"Contrato firmado."},
+  {"fecha":"2026-03-08","cliente":"Química Muestra SA","servicio":"Almacenamiento","mail":"contacto@quimica-muestra.example","telefono":"1155550007","origen":"Sitio web","subOrigen":"","resp":"Camila","estado":"7. No viable","subEstado":"SENASA","comentarios":"Requiere habilitación que no tenemos."},
+  {"fecha":"2026-02-14","cliente":"Comercial Testeo SRL","servicio":"Cross-docking","mail":"ventas@comercial-testeo.example","telefono":"1155550008","origen":"Meta Ads","subOrigen":"Formulario web","resp":"Cesar","estado":"8. No avanzó","subEstado":"Sin respuesta","comentarios":"Dejó de responder."},
+  {"fecha":"2026-02-01","cliente":"Servicios Ejemplo SA","servicio":"Almacenamiento","mail":"info@servicios-ejemplo.example","telefono":"1155550009","origen":"Google Ads","subOrigen":"Landing page","resp":"Camila","estado":"3. Cotizado","comentarios":"Sin novedades hace tiempo."}
+];
+
+function normalizeRow(r){
+  const estado = mapEstado(r.estado);
+  let subEstado = r.subEstado || "";
+  if(("" + (r.estado||"")).toLowerCase().indexOf("sin respuesta")>=0 && !subEstado) subEstado = "Sin respuesta";
+  const subAllowed = (estado==="8. No avanzó" || estado==="7. No viable");
+  if(!subAllowed) subEstado = "";
+  let historial = Array.isArray(r.historial) ? r.historial.slice() : [];
+  if(historial.length === 0 && r.comentarios){ historial = [{ ts: (r.fecha || todayStr()) + "T00:00:00", text: r.comentarios }]; }
+  const comentarios = historial.length ? historial.map(function(e){ return fmtDT(e.ts) + " - " + e.text; }).join("\n") : (r.comentarios || "");
+  return {
+    id: r.id || uid(), fecha: r.fecha || "", cliente: r.cliente || "", servicio: normServicio(r.servicio),
+    mail: r.mail || "", telefono: r.telefono ? ("" + r.telefono) : "", origen: r.origen || "", subOrigen: r.subOrigen || "",
+    resp: mapResp(r.resp), estado: estado, subEstado: subEstado, estadoFecha: r.estadoFecha || r.fecha || todayStr(),
+    historial: historial, comentarios: comentarios
+  };
+}
+// ===================================================================
+//  DataAPI — UNICA capa de acceso a datos.
+//  MAQUETA: todo vive en memoria (hardcodeado en SEED). Sin localStorage,
+//  sin IndexedDB, sin archivo. Al recargar la pagina vuelve al hardcode.
+//
+//  Para conectar el backend Django, reemplaza el cuerpo de cada metodo
+//  por un fetch(). Las lecturas iniciales son sincronas en la maqueta; con
+//  backend pasan a ser async -> cargalas en un useEffect y setea el estado.
+//  Ej:  useEffect(function(){
+//         fetch("/api/leads/").then(function(r){return r.json();})
+//           .then(function(d){ setRows(d.leads.map(normalizeRow)); });
+//       },[]);
+//
+//  Escrituras a conectar cuando existan (hoy solo mutan estado React en
+//  memoria): save(), applyBulkEstado(), bulkDelete(), bump(), onFile().
+//  Buscar el marcador  // >>> BACKEND
+// ===================================================================
+const DataAPI = {
+  loadLeads(){ return SEED.map(normalizeRow); },              // >>> BACKEND: GET /api/leads/
+  loadMeta(){ return { lastImport:null, lastExport:null }; },
+  loadTally(){ return {}; },                                  // >>> BACKEND: GET /api/tally/
+  loadShowTrend(){ return true; },
+};
+
+function Logo(){
+  const [ok, setOk] = useState(true);
+  return (
+    <div className="flex items-center gap-3 select-none">
+      {ok ? (
+        <React.Fragment>
+          <img src={LOGO_B64} alt="Intralog" className="h-12 w-auto" onError={function(){ setOk(false); }}/>
+          <div className="text-[10px] tracking-[0.3em] text-gray-500 font-semibold border-l border-[var(--line)] pl-3">CRM DE VENTAS</div>
+        </React.Fragment>
+      ) : (
+        <React.Fragment>
+          <svg width="40" height="40" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="46" fill="#22262A"/>
+            <path d="M50 8 A42 42 0 0 1 50 92 Z" fill="#E2231A"/>
+            <path d="M44 24 h13 l-9 52 h-13 z" fill="#fff"/>
+            <path d="M40 70 h26 l-3 8 h-26 z" fill="#fff"/>
+          </svg>
+          <div className="leading-none">
+            <div className="text-xl font-extrabold tracking-tight"><span style={{color:"#22262A"}}>INTRA</span><span style={{color:"#E2231A"}}>LOG</span></div>
+            <div className="text-[10px] tracking-[0.3em] text-gray-500 font-semibold">CRM DE VENTAS</div>
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+function Kpi(props){
+  const clickable = !!props.onClick;
+  const base = "w-full text-left rounded-xl border px-5 py-4 shadow-sm transition ";
+  const cls = base + (clickable ? "cursor-pointer hover:shadow-md " : "cursor-default ") + (props.active ? "border-[var(--red)] ring-2 ring-[var(--red)]/30 bg-white" : "border-[var(--line)] bg-white");
+  return (
+    <button type="button" onClick={props.onClick} className={cls}>
+      <div className="text-3xl font-extrabold" style={{color:props.accent||"#22262A"}}>{props.value}</div>
+      <div className="text-xs uppercase tracking-wide text-gray-500 mt-1">{props.label}{clickable && <span className="ml-1 text-gray-300">(filtrar)</span>}</div>
+    </button>
+  );
+}
+function BarChart(props){
+  const data = props.data;
+  const colorMap = props.colorMap;
+  const ref = useRef(null); const chart = useRef(null);
+  useEffect(function(){
+    if(!ref.current) return;
+    const labels = Object.keys(data);
+    const values = Object.keys(data).map(function(k){ return data[k]; });
+    const palette = ["#E2231A","#22262A","#d97706","#2563eb","#059669","#7c3aed","#0891b2"];
+    const bg = colorMap ? labels.map(function(l){ return colorMap[l]||"#9ca3af"; }) : labels.map(function(_,i){ return palette[i%palette.length]; });
+    const valLabels = { id:"valLabels", afterDatasetsDraw: function(c){
+      const ctx=c.ctx; ctx.save(); ctx.font="bold 12px 'Segoe UI',sans-serif"; ctx.fillStyle="#22262A"; ctx.textAlign="center";
+      const meta=c.getDatasetMeta(0);
+      meta.data.forEach(function(bar,i){ const v=c.data.datasets[0].data[i]; if(v!=null && v!==0) ctx.fillText(v, bar.x, bar.y-5); });
+      ctx.restore();
+    }};
+    if(chart.current) chart.current.destroy();
+    chart.current = new Chart(ref.current, {
+      type:"bar",
+      data:{ labels:labels, datasets:[{ data:values, backgroundColor: bg, borderRadius:6, maxBarThickness:46 }]},
+      options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:18}}, animation:false, plugins:{ legend:{display:false}, tooltip:{enabled:false} }, scales:{ y:{ beginAtZero:true, ticks:{precision:0}, grid:{color:"#eef0f2"} }, x:{ ticks:{font:{size:9}, maxRotation:30, minRotation:0}, grid:{display:false} } } },
+      plugins:[valLabels]
+    });
+    return function(){ if(chart.current) chart.current.destroy(); };
+  },[JSON.stringify(data)]);
+  const empty = Object.keys(data).length === 0;
+  return (
+    <div className="bg-white rounded-xl border border-[var(--line)] p-4 shadow-sm">
+      <h3 className="text-sm font-bold text-gray-700 mb-3">{props.title}</h3>
+      <div style={{height:220}} className="relative"><canvas id={props.canvasId} ref={ref}></canvas>{empty && <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">Sin datos en el periodo</div>}</div>
+    </div>
+  );
+}
+
+function LineChart(props){
+  const data = props.data;
+  const ref = useRef(null); const chart = useRef(null);
+  useEffect(function(){
+    if(!ref.current) return;
+    const datasets = data.series.map(function(s){ return { label:s.name, data:s.values, borderColor:s.color, backgroundColor:s.color, borderWidth:3, tension:0.25, pointRadius:4, pointHoverRadius:6 }; });
+    const vl = { id:"vl", afterDatasetsDraw:function(c){ const ctx=c.ctx; ctx.save(); ctx.font="bold 11px 'Segoe UI',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="bottom"; c.data.datasets.forEach(function(ds,di){ const meta=c.getDatasetMeta(di); if(meta.hidden) return; ctx.fillStyle=ds.borderColor; meta.data.forEach(function(pt,i){ const v=ds.data[i]; if(v!=null && v!==0) ctx.fillText(v, pt.x, pt.y-7); }); }); ctx.restore(); } };
+    if(chart.current) chart.current.destroy();
+    chart.current = new Chart(ref.current, {
+      type:"line",
+      data:{ labels:data.labels, datasets:datasets },
+      options:{ responsive:true, maintainAspectRatio:false, layout:{padding:{top:16}}, interaction:{mode:"index", intersect:false},
+        plugins:{ legend:{display:true, position:"bottom", labels:{boxWidth:12, font:{size:11}}}, tooltip:{ backgroundColor:"#22262A", callbacks:{ footer:function(items){ let t=0; items.forEach(function(it){ t+=it.parsed.y; }); return "Total del mes: "+t; } } } },
+        scales:{ y:{ beginAtZero:true, ticks:{precision:0}, grid:{color:"#eef0f2"} }, x:{ grid:{display:false}, ticks:{font:{size:11}} } } },
+      plugins:[vl]
+    });
+    return function(){ if(chart.current) chart.current.destroy(); };
+  },[JSON.stringify(data)]);
+  return (<div style={{height:props.height||240}} className="relative"><canvas ref={ref}></canvas></div>);
+}
+
+const EMPTY = {fecha:todayStr(),cliente:"",servicio:SERVICIOS[0],mail:"",telefono:"",origen:ORIGENES[0],subOrigen:"",resp:"Camila",estado:ESTADOS[0],subEstado:"",historial:[],nuevoComentario:"",estadoFecha:todayStr()};
+
+function LeadForm(props){
+  const initial = props.initial;
+  const [f, setF] = useState(initial ? Object.assign({nuevoComentario:""}, initial) : EMPTY);
+  const set = function(k){ return function(e){ const o = Object.assign({}, f); o[k] = e.target.value; setF(o); }; };
+  const setEstado = function(e){ const v = e.target.value; const o = Object.assign({}, f); o.estado = v; o.subEstado = (v === "8. No avanzó" || v === "7. No viable") ? f.subEstado : ""; setF(o); };
+  const submit = function(){ if(!f.cliente.trim()){ alert("El nombre del cliente es obligatorio."); return; } props.onSave(f); };
+  const field = "w-full border border-[var(--line)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--red)]/40 focus:border-[var(--red)]";
+  const lbl = "block text-xs font-semibold text-gray-600 mb-1";
+  const hist = f.historial || [];
+  const subList = f.estado === "7. No viable" ? SUB_NOVIABLE : SUB_NOAVANZO;
+  const showSub = (f.estado === "8. No avanzó" || f.estado === "7. No viable");
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto" onClick={props.onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl mt-8 fade-in" onClick={function(e){ e.stopPropagation(); }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
+          <h2 className="font-bold text-lg">{initial?"Editar lead":"Nuevo lead"}</h2>
+          <button onClick={props.onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label className={lbl}>Fecha</label><input type="date" className={field} value={f.fecha} onChange={set("fecha")}/></div>
+          <div><label className={lbl}>Cliente *</label><input className={field} value={f.cliente} onChange={set("cliente")} placeholder="Nombre / empresa"/></div>
+          <div><label className={lbl}>Servicio</label><select className={field} value={f.servicio} onChange={set("servicio")}>{SERVICIOS.map(function(o){ return <option key={o}>{o}</option>; })}</select></div>
+          <div><label className={lbl}>Estado</label><select className={field} value={f.estado} onChange={setEstado}>{ESTADOS.map(function(o){ return <option key={o}>{o}</option>; })}</select></div>
+          {showSub && (
+            <div className="md:col-span-2">
+              <label className={lbl}>{f.estado === "7. No viable" ? "Motivo de no viable" : "Sub-estado (motivo ajeno a la empresa)"}</label>
+              <select className={field} value={f.subEstado} onChange={set("subEstado")}><option value="">- Seleccionar motivo -</option>{subList.map(function(o){ return <option key={o}>{o}</option>; })}</select>
+            </div>
+          )}
+          <div><label className={lbl}>Mail</label><input className={field} value={f.mail} onChange={set("mail")} placeholder="correo@empresa.com"/></div>
+          <div><label className={lbl}>Teléfono</label><input className={field} value={f.telefono} onChange={set("telefono")}/></div>
+          <div><label className={lbl}>Origen</label><select className={field} value={f.origen} onChange={set("origen")}>{ORIGENES.map(function(o){ return <option key={o}>{o}</option>; })}</select></div>
+          <div><label className={lbl}>Sub-Origen</label><input className={field} value={f.subOrigen} onChange={set("subOrigen")} placeholder="Landing page, referente..."/></div>
+          <div><label className={lbl}>Responsable</label><select className={field} value={f.resp} onChange={set("resp")}>{RESPONSABLES.map(function(o){ return <option key={o}>{o}</option>; })}{RESPONSABLES.indexOf(f.resp)<0 && f.resp && <option key={f.resp}>{f.resp}</option>}</select></div>
+          {initial && <div><label className={lbl}>Últ. cambio de estado</label><input className={field+" bg-gray-50 text-gray-500"} value={f.estadoFecha||"-"} readOnly/></div>}
+          <div className="md:col-span-2">
+            <label className={lbl}>Agregar comentario / avance (se guarda con fecha y hora)</label>
+            <textarea rows="2" className={field} value={f.nuevoComentario||""} onChange={set("nuevoComentario")} placeholder="Escribí el avance de hoy..."/>
+          </div>
+          <div className="md:col-span-2">
+            <label className={lbl}>Historial de comentarios y cambios de estado</label>
+            <div className="border border-[var(--line)] rounded-lg max-h-48 overflow-auto divide-y divide-[var(--line)]">
+              {hist.length === 0 && <div className="text-xs text-gray-400 px-3 py-3">Sin movimientos aún. Lo que agregues quedará registrado con fecha y hora.</div>}
+              {hist.map(function(e,i){ return (
+                <div key={i} className="px-3 py-2">
+                  <div className="text-[11px] font-semibold text-[var(--red)]">{fmtDT(e.ts)}</div>
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{e.text}</div>
+                </div>
+              ); })}
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-[var(--line)]">
+          <button onClick={props.onClose} className="px-4 py-2 text-sm rounded-lg border border-[var(--line)] hover:bg-gray-50">Cancelar</button>
+          <button onClick={submit} className="px-5 py-2 text-sm rounded-lg text-white font-semibold" style={{background:"var(--red)"}}>Guardar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App(){
+  const [rows, setRows] = useState(function(){ return DataAPI.loadLeads(); });
+  const [meta, setMeta] = useState(function(){ return DataAPI.loadMeta(); });
+  const [q, setQ] = useState("");
+  const [period, setPeriod] = useState([]);
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const [fEstado, setFEstado] = useState("");
+  const [fServicio, setFServicio] = useState("");
+  const [fOrigen, setFOrigen] = useState("");
+  const [soloAlertas, setSoloAlertas] = useState(false);
+  const [quickFilter, setQuickFilter] = useState("");
+  const [editing, setEditing] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [sort, setSort] = useState({key:"fecha", dir:"desc"});
+  const [sel, setSel] = useState({});
+  const [bulkEstado, setBulkEstado] = useState("");
+  const [notesLead, setNotesLead] = useState(null);
+  const [tally, setTally] = useState(function(){ return DataAPI.loadTally(); });
+  const [view, setView] = useState("crm");
+  const [nocomDate, setNocomDate] = useState(todayStr());
+  const [showTrend, setShowTrend] = useState(function(){ return DataAPI.loadShowTrend(); });
+  const fileRef = useRef(null);
+  // (maqueta) sin capa de archivo/persistencia: se removieron los refs/estado
+  // de File System Access, los useEffect que escribian a localStorage y las
+  // funciones writeHandle/loadHandle/connectFile/openFile/reconnectFile.
+  // Cuando exista el backend, la persistencia se resuelve en DataAPI (fetch).
+
+  const periodsAsc = useMemo(function(){
+    const set = {}; rows.forEach(function(r){ const k = monthKey(r.fecha); if(k) set[k]=true; }); set[currentMonthKey()] = true;
+    return Object.keys(set).sort();
+  },[rows]);
+  const periodsDesc = periodsAsc.slice().reverse();
+  const periodLabel = period.length===0 ? "Todos los períodos" : (period.length===1 ? monthLabel(period[0]) : period.length + " meses");
+  const periodDetail = function(){
+    if(period.length===0){ const s=periodsAsc; return s.length ? ("Todos los períodos (" + monthLabel(s[0]) + " a " + monthLabel(s[s.length-1]) + ")") : "Todos los períodos"; }
+    return period.slice().sort().map(monthLabel).join(", ");
+  };
+  const toggleMonth = function(k){ setPeriod(function(p){ return p.indexOf(k)>=0 ? p.filter(function(x){ return x!==k; }) : p.concat([k]); }); };
+
+  const periodRows = useMemo(function(){ return period.length===0 ? rows : rows.filter(function(r){ return period.indexOf(monthKey(r.fecha))>=0; }); },[rows, period]);
+
+  const matchQuick = function(r){
+    if(quickFilter==="abiertas") return ABIERTOS.indexOf(r.estado)>=0;
+    if(quickFilter==="ganadas") return r.estado==="6. Venta ganada";
+    if(quickFilter==="alertas") return isStale(r);
+    return true;
+  };
+  const filtered = useMemo(function(){
+    let r = periodRows.filter(function(x){
+      const hay = (x.cliente+" "+x.mail+" "+x.telefono+" "+x.subOrigen+" "+x.comentarios+" "+x.resp+" "+x.subEstado).toLowerCase();
+      if(q && hay.indexOf(q.toLowerCase())<0) return false;
+      if(fEstado && x.estado!==fEstado) return false;
+      if(fServicio && x.servicio!==fServicio) return false;
+      if(fOrigen && x.origen!==fOrigen) return false;
+      if(soloAlertas && !isStale(x)) return false;
+      if(!matchQuick(x)) return false;
+      return true;
+    });
+    r = r.slice().sort(function(a,b){ const va=(a[sort.key]||""), vb=(b[sort.key]||""); return (va<vb?-1:va>vb?1:0) * (sort.dir==="asc"?1:-1); });
+    return r;
+  },[periodRows,q,fEstado,fServicio,fOrigen,soloAlertas,quickFilter,sort]);
+
+  const byOrigen = useMemo(function(){ const m={}; periodRows.forEach(function(r){ const k=r.origen||"Sin origen"; m[k]=(m[k]||0)+1; }); return m; },[periodRows]);
+  const byServicio = useMemo(function(){ const m={}; periodRows.forEach(function(r){ const k=r.servicio||"Sin servicio"; m[k]=(m[k]||0)+1; }); return m; },[periodRows]);
+  const byEstado = useMemo(function(){ const m={}; periodRows.forEach(function(r){ const k=r.estado||"-"; m[k]=(m[k]||0)+1; }); return m; },[periodRows]);
+  const ganadas = periodRows.filter(function(r){ return r.estado==="6. Venta ganada"; }).length;
+  const abiertas = periodRows.filter(function(r){ return ABIERTOS.indexOf(r.estado)>=0; }).length;
+  const alertas = periodRows.filter(isStale).length;
+  const noviable = periodRows.filter(function(r){ return r.estado==="7. No viable"; }).length;
+  const noavanzo = periodRows.filter(function(r){ return r.estado==="8. No avanzó"; }).length;
+  const nocomTotalsForPeriod = (function(){ const o={}; NOCOM_CATS.forEach(function(c){ o[c]=0; }); Object.keys(tally).forEach(function(date){ if(period.length===0 || period.indexOf(monthKey(date))>=0){ const day=tally[date]||{}; NOCOM_CATS.forEach(function(c){ o[c]+=(day[c]||0); }); } }); return o; })();
+  const bump = function(cat, delta){ setTally(function(t){ const o=Object.assign({}, t); const day=Object.assign({}, o[nocomDate]||{}); day[cat]=Math.max(0,(day[cat]||0)+delta); o[nocomDate]=day; return o; }); };
+  const trendData = useMemo(function(){
+    if(!showTrend) return null;
+    const set={}; periodRows.forEach(function(r){ const k=monthKey(r.fecha); if(k) set[k]=true; });
+    const months=Object.keys(set).sort();
+    if(months.length===0) return null;
+    const labels=months.map(shortMonth);
+    const present={}; periodRows.forEach(function(r){ present[r.origen||"Sin origen"]=true; });
+    let origList=Object.keys(present);
+    const order=function(o){ return o==="SIGNOS"?0:(o==="Referido"?1:2); };
+    origList.sort(function(a,b){ return order(a)-order(b); });
+    const palette=["#2563eb","#059669","#d97706","#7c3aed","#0891b2"];
+    const series=origList.map(function(o,idx){ return {name:o, color:o==="SIGNOS"?"#E2231A":(o==="Referido"?"#22262A":palette[idx%palette.length]), values:months.map(function(mk){ return periodRows.filter(function(r){ return monthKey(r.fecha)===mk && (r.origen||"Sin origen")===o; }).length; })}; });
+    return { labels:labels, series:series };
+  },[periodRows, showTrend]);
+
+  const toggleQuick = function(v){ setQuickFilter(function(c){ return c===v ? "" : v; }); };
+
+  const save = function(data){
+    const now = new Date().toISOString();
+    let hist = Array.isArray(data.historial) ? data.historial.slice() : [];
+    const nc = (data.nuevoComentario||"").trim();
+    const merged = Object.assign({}, data, {historial: hist});
+    delete merged.nuevoComentario;
+    if(merged.id){
+      const prev = rows.find(function(r){ return r.id===merged.id; });
+      const estChanged = prev && (prev.estado!==merged.estado || (prev.subEstado||"")!==(merged.subEstado||""));
+      if(estChanged){ hist.unshift({ ts: now, text: "Cambio de estado a " + merged.estado + (merged.subEstado ? " (" + merged.subEstado + ")" : "") }); }
+      if(nc){ hist.unshift({ ts: now, text: nc }); }
+      const dateChanged = prev && prev.estado!==merged.estado;
+      const nd = normalizeRow(Object.assign({}, merged, {historial: hist, estadoFecha: dateChanged ? todayStr() : (merged.estadoFecha || (prev&&prev.estadoFecha))}));
+      setRows(rows.map(function(r){ return r.id===merged.id?nd:r; }));
+    } else {
+      hist.unshift({ ts: now, text: "Alta del lead · Estado: " + merged.estado + (merged.subEstado ? " (" + merged.subEstado + ")" : "") });
+      if(nc){ hist.unshift({ ts: now, text: nc }); }
+      const nd = normalizeRow(Object.assign({}, merged, {historial: hist, id:uid(), estadoFecha: merged.fecha || todayStr()}));
+      setRows([nd].concat(rows));
+    }
+    setShowForm(false); setEditing(null);
+  };
+  const openNew = function(){ setEditing(null); setShowForm(true); };
+  const openEdit = function(r){ setEditing(r); setShowForm(true); };
+  const toggleSort = function(k){ setSort(function(s){ return s.key===k ? {key:k,dir:s.dir==="asc"?"desc":"asc"} : {key:k,dir:"asc"}; }); };
+
+  const selCount = Object.keys(sel).length;
+  const allRowsSelected = filtered.length>0 && filtered.every(function(r){ return sel[r.id]; });
+  const toggleRow = function(id){ setSel(function(s){ const o=Object.assign({},s); if(o[id]) delete o[id]; else o[id]=true; return o; }); };
+  const toggleAll = function(){ if(allRowsSelected){ setSel(function(s){ const o=Object.assign({},s); filtered.forEach(function(r){ delete o[r.id]; }); return o; }); } else { setSel(function(s){ const o=Object.assign({},s); filtered.forEach(function(r){ o[r.id]=true; }); return o; }); } };
+  const clearSel = function(){ setSel({}); };
+  const applyBulkEstado = function(){
+    if(!bulkEstado) return;
+    const now = new Date().toISOString();
+    setRows(rows.map(function(r){
+      if(!sel[r.id]) return r;
+      let h = (r.historial||[]).slice();
+      if(r.estado!==bulkEstado){ h.unshift({ ts: now, text: "Cambio de estado a " + bulkEstado }); }
+      return normalizeRow(Object.assign({}, r, {estado:bulkEstado, estadoFecha:todayStr(), subEstado:"", historial:h}));
+    }));
+    clearSel(); setBulkEstado("");
+  };
+  const bulkDelete = function(){
+    if(!confirm("Eliminar "+selCount+" lead(s) seleccionados? Esta accion no se puede deshacer.")) return;
+    setRows(rows.filter(function(r){ return !sel[r.id]; }));
+    clearSel();
+  };
+
+  const exportXlsx = function(){
+    const aoa = [EXPORT_HEADERS];
+    filtered.forEach(function(r){ aoa.push([ codPeriodo(r.fecha), r.fecha, r.cliente, r.servicio, r.mail, r.telefono, r.origen, r.subOrigen, r.resp, r.estado, r.subEstado, r.comentarios, r.estadoFecha ]); });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:16},{wch:12},{wch:30},{wch:15},{wch:30},{wch:16},{wch:14},{wch:16},{wch:12},{wch:24},{wch:18},{wch:40},{wch:14}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leads 2026");
+    XLSX.writeFile(wb, "Seguimiento comercial 2026.xlsx");
+    setMeta(function(m){ return Object.assign({}, m, {lastExport:new Date().toISOString()}); });
+  };
+
+  const generatePDF = function(){
+    const J = window.jspdf && window.jspdf.jsPDF;
+    if(!J){ alert("No se pudo cargar el generador de PDF. Verificá la conexión a internet."); return; }
+    const doc = new J("l","mm","a4");
+    const W = doc.internal.pageSize.getWidth();
+    const monthsToShow = period.length===0 ? periodsAsc.slice() : period.slice().sort();
+
+    // ===== PÁGINA 1 =====
+    try{ doc.addImage(LOGO_B64, "PNG", 14, 7, 42, 14); }catch(e){}
+    doc.setTextColor(34,38,42); doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.text("Reporte Comercial", 62, 15);
+    doc.setTextColor(120,120,120); doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.text("Generado: " + fmtDT(new Date().toISOString()), 62, 20);
+    doc.setDrawColor(226,35,26); doc.setLineWidth(0.8); doc.line(14, 26, W-14, 26);
+    let y = 33;
+    doc.setTextColor(34,38,42); doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.text("Período seleccionado:", 14, y);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(70,70,70);
+    const detLines = doc.splitTextToSize(periodDetail(), W - 28);
+    doc.text(detLines, 14, y + 5);
+    y += 5 + detLines.length*4.6 + 4;
+    // Total de leads + indicadores en una banda
+    const c0 = hex2rgb("#E2231A");
+    doc.setFillColor(c0[0],c0[1],c0[2]); doc.roundedRect(14, y, 62, 16, 2, 2, "F");
+    doc.setTextColor(255,255,255); doc.setFont("helvetica","normal"); doc.setFontSize(6.5); doc.text("TOTAL DE LEADS", 18, y+5);
+    doc.setFont("helvetica","bold"); doc.setFontSize(18); doc.text(String(periodRows.length), 18, y+13);
+    const stats = [["Abiertas",abiertas,"#2563eb"],["Ganadas",ganadas,"#059669"],["No viable",noviable,"#dc2626"],["No avanzo",noavanzo,"#9ca3af"]];
+    const sx0 = 14+62+6; const savail = (W-14)-sx0; const bw = (savail - 3*4)/4;
+    stats.forEach(function(s,i){ const x=sx0+i*(bw+4); const c=hex2rgb(s[2]); doc.setFillColor(c[0],c[1],c[2]); doc.roundedRect(x,y,bw,16,1.5,1.5,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.text(String(s[1]), x+bw/2, y+8, {align:"center"}); doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.text(s[0], x+bw/2, y+13, {align:"center"}); });
+    y += 22;
+    // Gráfico de líneas por origen y por mes
+    if(monthsToShow.length>1){
+      doc.setTextColor(34,38,42); doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.text("Leads por origen y por mes", 14, y);
+      y += 4;
+      try{
+        const labels = monthsToShow.map(shortMonth);
+        const present = {}; rows.forEach(function(r){ if(monthsToShow.indexOf(monthKey(r.fecha))>=0){ present[r.origen||"Sin origen"]=true; } });
+        let origList = Object.keys(present);
+        const order = function(o){ return o==="SIGNOS"?0 : o==="Referido"?1 : 2; };
+        origList.sort(function(a,b){ return order(a)-order(b); });
+        const palette = ["#2563eb","#059669","#d97706","#7c3aed","#0891b2"];
+        const series = origList.map(function(o,idx){ return { name:o, color: o==="SIGNOS"?"#E2231A":(o==="Referido"?"#22262A":palette[idx%palette.length]), values: monthsToShow.map(function(mk){ return rows.filter(function(r){ return monthKey(r.fecha)===mk && (r.origen||"Sin origen")===o; }).length; }) }; });
+        const img = buildMultiLineChartDataURL(labels, series);
+        const lcW = 250; const lcH = lcW*340/1000; const lcX = (W-lcW)/2;
+        doc.addImage(img, "PNG", lcX, y, lcW, lcH);
+      }catch(e){ doc.setTextColor(200,0,0); doc.setFontSize(10); doc.text("No se pudo dibujar el grafico (" + e.message + ").", 14, y+8); }
+    } else {
+      doc.setTextColor(120,120,120); doc.setFont("helvetica","italic"); doc.setFontSize(9); doc.text("Seleccioná más de un mes para ver la evolución de leads por origen.", 14, y+4);
+    }
+
+    // ===== PÁGINA 2 =====
+    doc.addPage();
+    let y2 = 16;
+    const pairs = [["Leads por Estado","chart-estado"],["Leads por Servicio","chart-servicio"]];
+    const cw = (W-28-6)/2; const chh = 66;
+    pairs.forEach(function(p,i){ try{ const el=document.getElementById(p[1]); const im=el.toDataURL("image/png",1.0); const x=14+i*(cw+6); doc.setTextColor(90,90,90); doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.text(p[0], x, y2); doc.addImage(im,"PNG",x,y2+3,cw,chh); }catch(e){} });
+    y2 += chh + 10;
+    const estBody = [];
+    ESTADOS.forEach(function(es){ const c=periodRows.filter(function(r){ return r.estado===es; }).length; if(c>0) estBody.push([es, c, (periodRows.length? Math.round(c*100/periodRows.length):0)+"%"]); });
+    doc.autoTable({ head:[["Estado","Cantidad","% del total"]], body:estBody, foot:[["TOTAL", periodRows.length, "100%"]], startY:y2, theme:"grid", headStyles:{fillColor:[34,38,42]}, footStyles:{fillColor:[226,35,26], textColor:[255,255,255], fontStyle:"bold"}, styles:{fontSize:9}, margin:{left:14,right:14} });
+    var ncTot={}; NOCOM_CATS.forEach(function(c){ ncTot[c]=0; }); Object.keys(tally).forEach(function(date){ if(period.length===0 || period.indexOf(monthKey(date))>=0){ var day=tally[date]||{}; NOCOM_CATS.forEach(function(c){ ncTot[c]+=(day[c]||0); }); } });
+    var ncTotal=NOCOM_CATS.reduce(function(acc,c){ return acc+ncTot[c]; },0);
+    if(ncTotal>0){ doc.autoTable({ head:[["Contactos no comerciales","Cantidad"]], body:NOCOM_CATS.map(function(c){ return [c, ncTot[c]]; }), foot:[["TOTAL", ncTotal]], startY: doc.lastAutoTable.finalY + 6, theme:"grid", headStyles:{fillColor:[120,120,120]}, footStyles:{fillColor:[34,38,42], textColor:[255,255,255], fontStyle:"bold"}, styles:{fontSize:9}, margin:{left:14,right:14} }); }
+    const tag = period.length===0 ? "Todos los periodos" : period.slice().sort().map(monthLabel).join(", ");
+    doc.save("Reporte CRM - " + tag + ".pdf");
+  };
+  const triggerImport = function(){ if(fileRef.current) fileRef.current.click(); };
+  const onFile = function(e){
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev){
+      try{
+        const wb = XLSX.read(new Uint8Array(ev.target.result), {type:"array", cellDates:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const grid = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:""});
+        if(!grid.length){ alert("El archivo esta vacio."); return; }
+        const headers = grid[0].map(function(h){ return (""+h).trim(); });
+        const find = function(){
+          const cands = Array.prototype.slice.call(arguments);
+          for(let h=0; h<headers.length; h++){ const hl = headers[h].toLowerCase(); for(let c=0; c<cands.length; c++){ if(hl.indexOf(cands[c].toLowerCase())===0) return h; } }
+          return -1;
+        };
+        const idx = { fecha: find("Fecha de i","Fecha"), cliente: find("Cliente","Razon social","Razon","Nombre"), servicio: find("Servicio"), mail: find("Mail","Email","Correo"), telefono: find("Telefono","Tel"), origen: find("Origen","Canal"), subOrigen: find("Sub-Origen","Sub origen","Suborigen"), resp: find("Resp","Asignado"), estado: find("Estado"), comentarios: find("Comentarios","Notas","Consulta"), subEstado: find("Sub-Estado","Subestado"), estadoFecha: find("Fecha ult") };
+        const toISO = function(v){
+          if(v===null||v===undefined||v==="") return "";
+          if(v instanceof Date && !isNaN(v)) return isoFromDate(v);
+          const s = (""+v).trim();
+          if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+          const d = new Date(s); return isNaN(d) ? "" : isoFromDate(d);
+        };
+        const get = function(row,i){ return (i>=0 && row[i]!==undefined) ? row[i] : ""; };
+        const imported = [];
+        for(let i=1;i<grid.length;i++){
+          const row = grid[i]; if(!row || !row.length) continue;
+          const cliente = (""+get(row,idx.cliente)).trim(); if(!cliente) continue;
+          imported.push(normalizeRow({ fecha: toISO(get(row,idx.fecha)), cliente: cliente, servicio: get(row,idx.servicio), mail: get(row,idx.mail), telefono: get(row,idx.telefono), origen: get(row,idx.origen), subOrigen: get(row,idx.subOrigen), resp: get(row,idx.resp), estado: (""+get(row,idx.estado)).trim(), subEstado: (""+get(row,idx.subEstado)).trim(), estadoFecha: toISO(get(row,idx.estadoFecha)), comentarios: get(row,idx.comentarios) }));
+        }
+        if(!imported.length){ alert("No se encontraron filas con cliente en el archivo."); return; }
+        if(!confirm("Se importaran "+imported.length+" leads y se reemplazaran los "+rows.length+" actuales. Continuar?")) return;
+        setRows(imported); clearSel();
+        setMeta(function(m){ return Object.assign({}, m, {lastImport:new Date().toISOString()}); });
+        alert("Importacion completa: "+imported.length+" leads cargados.");
+      }catch(err){ alert("Error al leer el archivo: "+err.message); }
+      finally{ e.target.value=""; }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const selCls = "border border-[var(--line)] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--red)]/30";
+  function SortTh(p){
+    return (<th className={"px-3 py-2 text-left font-semibold cursor-pointer hover:text-[var(--red)] select-none "+(p.className||"")} onClick={function(){ toggleSort(p.k); }}>{p.children}{sort.key===p.k ? (sort.dir==="asc"?" ▲":" ▼") : ""}</th>);
+  }
+
+  return (
+    <div className="max-w-[1280px] mx-auto px-5 py-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+        <Logo/>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Período</span>
+          <div className="relative">
+            <button onClick={function(){ setPeriodOpen(!periodOpen); }} className={selCls+" min-w-[150px] text-left flex items-center justify-between gap-2"}><span>{periodLabel}</span><span className="text-gray-400">▾</span></button>
+            {periodOpen && (
+              <React.Fragment>
+                <div className="fixed inset-0 z-10" onClick={function(){ setPeriodOpen(false); }}></div>
+                <div className="absolute right-0 mt-1 z-20 bg-white border border-[var(--line)] rounded-lg shadow-lg w-56 max-h-72 overflow-auto p-2">
+                  <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm font-semibold"><input type="checkbox" checked={period.length===0} onChange={function(){ setPeriod([]); }} className="accent-[var(--red)]"/> Todos los períodos</label>
+                  <div className="border-t border-[var(--line)] my-1"></div>
+                  {periodsDesc.map(function(k){ return (<label key={k} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm"><input type="checkbox" checked={period.indexOf(k)>=0} onChange={function(){ toggleMonth(k); }} className="accent-[var(--red)]"/> {monthLabel(k)}</label>); })}
+                </div>
+              </React.Fragment>
+            )}
+          </div>
+          <button onClick={generatePDF} className="px-4 py-2.5 rounded-lg font-semibold text-sm border border-[var(--line)] hover:bg-gray-50">Reporte PDF</button>
+          <button onClick={openNew} className="px-4 py-2.5 rounded-lg text-white font-semibold text-sm shadow-sm hover:opacity-90" style={{background:"var(--red)"}}>+ Nuevo lead</button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-5">
+        <button onClick={function(){ setView("crm"); }} className={"px-4 py-2 rounded-lg text-sm font-semibold "+(view==="crm"?"text-white":"border border-[var(--line)] text-gray-600 hover:bg-gray-50")} style={view==="crm"?{background:"var(--red)"}:null}>Comercial</button>
+        <button onClick={function(){ setView("nocom"); }} className={"px-4 py-2 rounded-lg text-sm font-semibold "+(view==="nocom"?"text-white":"border border-[var(--line)] text-gray-600 hover:bg-gray-50")} style={view==="nocom"?{background:"var(--red)"}:null}>Leads no comerciales</button>
+      </div>
+
+      {view==="crm" && (
+      <React.Fragment>
+      <div className="bg-white rounded-xl border border-[var(--line)] p-4 shadow-sm mb-6">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold text-gray-700">Leads por origen y por mes</h3>
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none"><input type="checkbox" checked={showTrend} onChange={function(e){ setShowTrend(e.target.checked); }} className="accent-[var(--red)]"/> Mostrar gráfico</label>
+        </div>
+        {showTrend && (trendData ? <div className="mt-3" style={{maxWidth:"720px", margin:"0 auto"}}><LineChart data={trendData} height={240}/></div> : <div className="text-sm text-gray-400 mt-3">Sin datos para el período seleccionado.</div>)}
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Kpi label={"Leads - "+periodLabel} value={periodRows.length} onClick={function(){ setQuickFilter(""); }} active={quickFilter===""}/>
+        <Kpi label="Oportunidades abiertas" value={abiertas} accent="#2563eb" onClick={function(){ toggleQuick("abiertas"); }} active={quickFilter==="abiertas"}/>
+        <Kpi label="Ventas ganadas" value={ganadas} accent="#059669" onClick={function(){ toggleQuick("ganadas"); }} active={quickFilter==="ganadas"}/>
+        <Kpi label="Alertas +30 días" value={alertas} accent="#E2231A" onClick={function(){ toggleQuick("alertas"); }} active={quickFilter==="alertas"}/>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <BarChart title="Leads por Estado" data={byEstado} colorMap={ESTADO_COLOR} canvasId="chart-estado"/>
+        <BarChart title="Leads por Origen" data={byOrigen} canvasId="chart-origen"/>
+        <BarChart title="Leads por Servicio" data={byServicio} canvasId="chart-servicio"/>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[var(--line)] p-4 shadow-sm mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <input value={q} onChange={function(e){ setQ(e.target.value); }} placeholder="Buscar cliente, mail, teléfono..." className={selCls+" flex-1 min-w-[200px]"}/>
+          <select className={selCls} value={fServicio} onChange={function(e){ setFServicio(e.target.value); }}><option value="">Todos los servicios</option>{SERVICIOS.map(function(o){ return <option key={o}>{o}</option>; })}</select>
+          <select className={selCls} value={fEstado} onChange={function(e){ setFEstado(e.target.value); }}><option value="">Todos los estados</option>{ESTADOS.map(function(o){ return <option key={o}>{o}</option>; })}</select>
+          <select className={selCls} value={fOrigen} onChange={function(e){ setFOrigen(e.target.value); }}><option value="">Todos los orígenes</option>{ORIGENES.map(function(o){ return <option key={o}>{o}</option>; })}</select>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none"><input type="checkbox" checked={soloAlertas} onChange={function(e){ setSoloAlertas(e.target.checked); }} className="accent-[var(--red)]"/> Solo alertas +30d</label>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-[var(--line)]">
+          <div className="text-xs text-gray-500">{filtered.length} de {rows.length} leads{quickFilter?" · filtro: "+quickFilter:""} &middot; Exp.: <b>{fmtDT(meta.lastExport)}</b> &middot; Imp.: <b>{fmtDT(meta.lastImport)}</b> &middot; <span className="text-amber-600 font-semibold">MAQUETA · datos en memoria (no persiste)</span></div>
+          <div className="flex items-center gap-2">
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onFile}/>
+            {/* (maqueta) sin conexion a archivo de datos: se removieron los botones Conectar/Reconectar/Cambiar archivo */}
+            <button onClick={triggerImport} className="px-4 py-2 rounded-lg text-sm font-semibold border border-[var(--line)] hover:bg-gray-50">Importar Excel</button>
+            <button onClick={exportXlsx} className="px-4 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90" style={{background:"#22262A"}}>Exportar a Excel</button>
+          </div>
+        </div>
+      </div>
+
+      {selCount>0 && (
+        <div className="bg-[#22262A] text-white rounded-xl p-3 mb-4 flex flex-wrap items-center gap-3 fade-in">
+          <span className="font-semibold text-sm">{selCount} seleccionado(s)</span>
+          <select className="border border-gray-600 bg-[#2c3136] text-white rounded-lg px-3 py-1.5 text-sm" value={bulkEstado} onChange={function(e){ setBulkEstado(e.target.value); }}>
+            <option value="">Cambiar estado a...</option>{ESTADOS.map(function(o){ return <option key={o} value={o}>{o}</option>; })}
+          </select>
+          <button onClick={applyBulkEstado} disabled={!bulkEstado} className="px-3 py-1.5 rounded-lg text-sm font-semibold disabled:opacity-40" style={{background:bulkEstado?"#059669":"#4b5563"}}>Aplicar</button>
+          <button onClick={bulkDelete} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={{background:"var(--red)"}}>Eliminar seleccionados</button>
+          <button onClick={clearSel} className="px-3 py-1.5 rounded-lg text-sm border border-gray-600 hover:bg-[#2c3136]">Limpiar selección</button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-[var(--line)] shadow-sm overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-600 border-b border-[var(--line)] text-xs uppercase tracking-wide">
+            <tr>
+              <th className="px-3 py-2 text-center w-8"><input type="checkbox" checked={allRowsSelected} onChange={toggleAll} className="accent-[var(--red)]"/></th>
+              <th className="px-2 py-2 text-right font-semibold w-8">#</th>
+              <SortTh k="fecha">Fecha</SortTh><SortTh k="cliente">Cliente</SortTh><SortTh k="servicio">Servicio</SortTh>
+              <th className="px-3 py-2 text-left font-semibold">Contacto</th><SortTh k="origen">Origen</SortTh><SortTh k="estado">Estado</SortTh>
+              <th className="px-3 py-2 text-left font-semibold">Últ. actividad</th><th className="px-3 py-2 text-right font-semibold">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(function(r,i){
+              const stale = isStale(r); const la = lastActivityDate(r); const d = daysSince(la); const wa = waDigits(r.telefono);
+              const tip = r.comentarios ? r.comentarios : "Sin comentarios registrados";
+              return (
+              <tr key={r.id} className={"border-b border-[var(--line)] hover:bg-gray-50/70 "+(sel[r.id]?"bg-red-50/40":"")} style={stale?{boxShadow:"inset 4px 0 0 var(--red)"}:null}>
+                <td className="px-3 py-2 text-center"><input type="checkbox" checked={!!sel[r.id]} onChange={function(){ toggleRow(r.id); }} className="accent-[var(--red)]"/></td>
+                <td className="px-2 py-2 text-right text-gray-400 font-semibold">{i+1}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-gray-600">{r.fecha}</td>
+                <td className="px-3 py-2 font-semibold text-[var(--ink)]">{r.cliente}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{r.servicio}</td>
+                <td className="px-3 py-2">
+                  {r.mail && <div className="text-xs text-blue-600 truncate max-w-[180px]">{r.mail}</div>}
+                  {r.telefono && (wa
+                    ? <a href={"https://wa.me/"+wa} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs font-semibold text-[#1ebe57] hover:underline">WhatsApp <span className="text-gray-400 font-normal">{r.telefono}</span></a>
+                    : <div className="text-xs text-gray-500">{r.telefono}</div>)}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">{r.origen}{r.subOrigen && <div className="text-xs text-gray-400">{r.subOrigen}</div>}</td>
+                <td className="px-3 py-2 whitespace-nowrap"><span className="inline-block px-2 py-1 rounded-full text-xs font-semibold text-white" style={{background:ESTADO_COLOR[r.estado]||"#6b7280"}}>{r.estado}</span>{r.subEstado && <div className="text-xs text-gray-400 mt-0.5">{r.subEstado}</div>}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-gray-600 cursor-help" title={tip}><div className="text-xs">{la||"-"}</div>{d!==null && (stale ? <div className="text-xs font-semibold text-[var(--red)]">! {d} días sin avances</div> : <div className="text-xs text-gray-400">hace {d} d</div>)}{r.comentarios && <button onClick={function(){ setNotesLead(r); }} className="text-[10px] text-blue-600 underline hover:text-[var(--red)] cursor-pointer">ver comentarios</button>}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap"><button onClick={function(){ openEdit(r); }} className="px-2 py-1 rounded border border-[var(--line)] text-gray-600 hover:text-[var(--red)] hover:border-[var(--red)] text-xs">Editar</button></td>
+              </tr>
+            );})}
+            {filtered.length===0 && <tr><td colSpan="10" className="px-3 py-10 text-center text-gray-400">No hay leads que coincidan con los filtros del período.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      </React.Fragment>
+      )}
+
+      {view==="nocom" && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-[var(--line)] p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-bold text-lg">Leads no comerciales</h2>
+                <p className="text-xs text-gray-500 max-w-xl">Contá las consultas que no son comerciales (empleo, proveedores, etc.). Cada +1 suma a la fecha elegida, se guarda solo y respeta el período seleccionado arriba. No se cargan datos individuales.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fecha a cargar</label>
+                <input type="date" value={nocomDate} onChange={function(e){ setNocomDate(e.target.value); }} className={selCls}/>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {NOCOM_CATS.map(function(cat){
+              const dayCount = (tally[nocomDate]||{})[cat]||0;
+              const periodCount = nocomTotalsForPeriod[cat];
+              return (
+                <div key={cat} className="bg-white rounded-xl border border-[var(--line)] p-5 shadow-sm">
+                  <div className="text-sm font-bold text-gray-700">{cat}</div>
+                  <div className="text-4xl font-extrabold mt-2" style={{color:"#22262A"}}>{periodCount}</div>
+                  <div className="text-xs text-gray-500 mb-3">en el período ({periodLabel})</div>
+                  <div className="flex items-center justify-between border-t border-[var(--line)] pt-3">
+                    <div className="text-xs text-gray-500">{nocomDate}: <b>{dayCount}</b></div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={function(){ bump(cat,-1); }} className="w-9 h-9 rounded-lg border border-[var(--line)] text-lg font-bold hover:bg-gray-50">-</button>
+                      <button onClick={function(){ bump(cat,1); }} className="w-9 h-9 rounded-lg text-lg font-bold text-white hover:opacity-90" style={{background:"var(--red)"}}>+</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="bg-white rounded-xl border border-[var(--line)] p-4 shadow-sm text-sm text-gray-600">Total no comerciales en el período (<b>{periodLabel}</b>): <b className="text-[var(--ink)]">{NOCOM_CATS.reduce(function(acc,c){ return acc+nocomTotalsForPeriod[c]; },0)}</b></div>
+        </div>
+      )}
+
+      <div className="text-center text-xs text-gray-400 mt-6">Sistema CRM creado para uso comercial de Intralog Argentina S.A.<br/>Creado y pensado por Camila Reynaga</div>
+      {notesLead && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center p-4 overflow-y-auto" onClick={function(){ setNotesLead(null); }}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mt-12 fade-in" onClick={function(e){ e.stopPropagation(); }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
+              <h2 className="font-bold text-base">Comentarios · {notesLead.cliente}</h2>
+              <button onClick={function(){ setNotesLead(null); }} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="p-4 max-h-[60vh] overflow-auto divide-y divide-[var(--line)]">
+              {(notesLead.historial||[]).length===0 && <div className="text-sm text-gray-400 px-2 py-3">Sin comentarios registrados.</div>}
+              {(notesLead.historial||[]).map(function(e,i){ return (<div key={i} className="px-2 py-2"><div className="text-[11px] font-semibold text-[var(--red)]">{fmtDT(e.ts)}</div><div className="text-sm text-gray-700 whitespace-pre-wrap">{e.text}</div></div>); })}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-3 border-t border-[var(--line)]">
+              <button onClick={function(){ openEdit(notesLead); setNotesLead(null); }} className="px-4 py-2 text-sm rounded-lg text-white font-semibold" style={{background:"var(--red)"}}>Editar / agregar</button>
+              <button onClick={function(){ setNotesLead(null); }} className="px-4 py-2 text-sm rounded-lg border border-[var(--line)] hover:bg-gray-50">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showForm && <LeadForm initial={editing} onSave={save} onClose={function(){ setShowForm(false); setEditing(null); }}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
