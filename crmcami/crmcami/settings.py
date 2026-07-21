@@ -64,6 +64,11 @@ INSTALLED_APPS = [
 # migrate; cambiarlo despues es una migracion muy costosa.
 AUTH_USER_MODEL = 'accounts.User'
 
+# Flujo de autenticacion (session auth nativa)
+LOGIN_URL = 'login'                 # a donde te manda si no estas logueado
+LOGIN_REDIRECT_URL = 'home'         # a donde vas despues de loguear
+LOGOUT_REDIRECT_URL = 'login'       # a donde vas despues de salir
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

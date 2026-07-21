@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inicio · CRM Intralog</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root{ --red:#E2231A; --ink:#22262A; --line:#e4e7eb; }
+    body{ background:#f4f5f7; font-family:'Segoe UI',system-ui,sans-serif; color:var(--ink); }
+  </style>
+</head>
+<body class="min-h-screen">
+  <header class="bg-white border-b border-[var(--line)]">
+    <div class="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+      <div class="text-lg font-extrabold">
+        <span style="color:#22262A">INTRA</span><span style="color:#E2231A">LOG</span>
+        <span class="text-[10px] tracking-[0.3em] text-gray-500 font-semibold ml-2">CRM</span>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span class="text-gray-500">{{ user.username }}</span>
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button class="px-3 py-1.5 rounded-lg border border-[var(--line)] hover:bg-gray-50">Salir</button>
+        </form>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-5 py-10">
+    <div class="bg-white rounded-2xl border border-[var(--line)] shadow-sm p-8">
+      <h1 class="text-lg font-bold mb-2">Estás dentro ✅</h1>
+      <p class="text-sm text-gray-600">
+        Login funcionando. Esta vista está protegida con <code>login_required</code>:
+        acá es donde después vamos a servir el SPA (<code>crm_mock.html</code>).
+      </p>
+    </div>
+  </main>
+</body>
+</html>

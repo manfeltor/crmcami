@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ingresar · CRM Intralog</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root{ --red:#E2231A; --ink:#22262A; --line:#e4e7eb; }
+    body{ background:#f4f5f7; font-family:'Segoe UI',system-ui,sans-serif; color:var(--ink); }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-sm bg-white rounded-2xl border border-[var(--line)] shadow-sm p-8">
+    <div class="mb-6">
+      <div class="text-xl font-extrabold tracking-tight">
+        <span style="color:#22262A">INTRA</span><span style="color:#E2231A">LOG</span>
+      </div>
+      <div class="text-[10px] tracking-[0.3em] text-gray-500 font-semibold">CRM DE VENTAS</div>
+    </div>
+
+    {% if form.errors %}
+      <div class="mb-4 text-sm text-[var(--red)] bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+        Usuario o contraseña incorrectos.
+      </div>
+    {% endif %}
+
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Usuario</label>
+        <input name="username" autofocus required
+               class="w-full border border-[var(--line)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--red)]/40 focus:border-[var(--red)]">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Contraseña</label>
+        <input name="password" type="password" required
+               class="w-full border border-[var(--line)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--red)]/40 focus:border-[var(--red)]">
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit"
+              class="w-full py-2 rounded-lg text-white font-semibold hover:opacity-90" style="background:var(--red)">
+        Entrar
+      </button>
+    </form>
+  </div>
+</body>
+</html>
