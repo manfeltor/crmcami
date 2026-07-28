@@ -58,6 +58,7 @@ INSTALLED_APPS = [
 
     # apps propias
     'accounts',
+    'crm',
 ]
 
 # Usuario custom (AbstractUser vacio). DEBE quedar definido ANTES del primer

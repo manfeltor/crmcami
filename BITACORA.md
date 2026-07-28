@@ -5,8 +5,8 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 
 ## Roadmap
 - [x] **Paso 0** — Esqueleto Django (`accounts` + login + config de prod)
-- [~] **Paso 1** — Servir el SPA (`crm_mock.html`) desde Django detrás de login
-- [ ] **Paso 2** — Modelo de datos (app `crm`: Lead / LeadHistorial / TallyNoComercial + normalización)
+- [x] **Paso 1** — Servir el SPA (`crm_mock.html`) desde Django detrás de login
+- [x] **Paso 2** — Modelo de datos (app `crm`: Lead / LeadHistorial / TallyNoComercial + normalización)
 - [ ] **Paso 3** — Lecturas (GET) + conectar `DataAPI.loadX` a `fetch()`
 - [ ] **Paso 4** — Escrituras (POST) + conectar `save`/`bulk`/`delete`/`bump`/`import`
 - [ ] **Paso 5** — Ingesta WordPress (pull, app `integrations`)
@@ -22,6 +22,14 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 ---
 
 ## Entradas
+
+### 2026-07-28 — Paso 2: modelo de datos (app `crm`)
+- Modelos `Lead`, `LeadHistorial` (reemplaza el array `historial[]`), `TallyNoComercial`.
+- `comentarios` = **propiedad derivada** del historial (no es columna) → una sola fuente de verdad.
+- `responsable` FK→User; enums en `crm/choices.py`; normalización en `crm/normalize.py`
+  (fuente única para import y sync WP); `wp_entry_id` unique para el pull de Formidable.
+- Migrado a MySQL (`crm_lead` / `crm_leadhistorial` / `crm_tallynocomercial`). Lógica
+  verificada con un lead de prueba + rollback (comentarios derivado, alerta +30d, FK responsable).
 
 ### 2026-07-17 — Paso 1: servir el SPA desde Django
 - `crm_mock.html` movido a `crmcami/frontend/`.
