@@ -7,7 +7,7 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 - [x] **Paso 0** — Esqueleto Django (`accounts` + login + config de prod)
 - [x] **Paso 1** — Servir el SPA (`crm_mock.html`) desde Django detrás de login
 - [x] **Paso 2** — Modelo de datos (app `crm`: Lead / LeadHistorial / TallyNoComercial + normalización)
-- [ ] **Paso 3** — Lecturas (GET) + conectar `DataAPI.loadX` a `fetch()`
+- [x] **Paso 3** — Lecturas (GET) + conectar `DataAPI.loadLeads` a `fetch()`
 - [ ] **Paso 4** — Escrituras (POST) + conectar `save`/`bulk`/`delete`/`bump`/`import`
 - [ ] **Paso 5** — Ingesta WordPress (pull, app `integrations`)
 - [ ] **Paso 6** — Deploy Cloud Run + Cloud SQL
@@ -22,6 +22,14 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 ---
 
 ## Entradas
+
+### 2026-07-28 — Paso 3: lecturas conectadas (`GET /api/leads/`)
+- Endpoint `GET /api/leads/` (JsonResponse, `login_required`) que serializa los `Lead`
+  con las claves que el mock ya consume (`subOrigen`/`estadoFecha`/`historial[{ts,text}]`).
+- Command `seed_demo` con los 9 leads ficticios (dev, sin PII).
+- Mock: `DataAPI.loadLeads()` pasa de `return SEED` a `fetch()`; `rows` arranca en `[]`
+  y se llena en un `useEffect` (sync→async). **El SPA ya muestra data real de MySQL.**
+- Las escrituras siguen en memoria → Paso 4. Verificado en browser (9 leads).
 
 ### 2026-07-28 — Paso 2: modelo de datos (app `crm`)
 - Modelos `Lead`, `LeadHistorial` (reemplaza el array `historial[]`), `TallyNoComercial`.

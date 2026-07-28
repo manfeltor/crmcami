@@ -225,7 +225,7 @@ function normalizeRow(r){
 //  Buscar el marcador  // >>> BACKEND
 // ===================================================================
 const DataAPI = {
-  loadLeads(){ return SEED.map(normalizeRow); },              // >>> BACKEND: GET /api/leads/
+  loadLeads(){ return fetch("/api/leads/", {credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(d){ return (d.leads||[]).map(normalizeRow); }); },  // CONECTADO: GET /api/leads/
   loadMeta(){ return { lastImport:null, lastExport:null }; },
   loadTally(){ return {}; },                                  // >>> BACKEND: GET /api/tally/
   loadShowTrend(){ return true; },
@@ -387,7 +387,7 @@ function LeadForm(props){
 }
 
 function App(){
-  const [rows, setRows] = useState(function(){ return DataAPI.loadLeads(); });
+  const [rows, setRows] = useState([]);   // arranca vacio; se llena async (ver useEffect abajo)
   const [meta, setMeta] = useState(function(){ return DataAPI.loadMeta(); });
   const [q, setQ] = useState("");
   const [period, setPeriod] = useState([]);
@@ -412,6 +412,10 @@ function App(){
   // de File System Access, los useEffect que escribian a localStorage y las
   // funciones writeHandle/loadHandle/connectFile/openFile/reconnectFile.
   // Cuando exista el backend, la persistencia se resuelve en DataAPI (fetch).
+
+  // Paso 3 (sync -> async): carga inicial de leads desde el backend. rows
+  // arranca en [] y se llena cuando responde GET /api/leads/.
+  useEffect(function(){ DataAPI.loadLeads().then(setRows).catch(function(){}); }, []);
 
   const periodsAsc = useMemo(function(){
     const set = {}; rows.forEach(function(r){ const k = monthKey(r.fecha); if(k) set[k]=true; }); set[currentMonthKey()] = true;
