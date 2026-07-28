@@ -8,7 +8,7 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 - [x] **Paso 1** — Servir el SPA (`crm_mock.html`) desde Django detrás de login
 - [x] **Paso 2** — Modelo de datos (app `crm`: Lead / LeadHistorial / TallyNoComercial + normalización)
 - [x] **Paso 3** — Lecturas (GET) + conectar `DataAPI.loadLeads` a `fetch()`
-- [ ] **Paso 4** — Escrituras (POST) + conectar `save`/`bulk`/`delete`/`bump`/`import`
+- [x] **Paso 4** — Escrituras (POST) + conectar `save`/`bulk`/`delete`/`bump`/`import`
 - [ ] **Paso 5** — Ingesta WordPress (pull, app `integrations`)
 - [ ] **Paso 6** — Deploy Cloud Run + Cloud SQL
 
@@ -22,6 +22,16 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 ---
 
 ## Entradas
+
+### 2026-07-28 — Paso 4: escrituras conectadas (el CRM ya persiste)
+- **CSRF**: `@ensure_csrf_cookie` en la vista del SPA + helpers `getCookie`/`postJSON`
+  (header `X-CSRFToken` en cada POST). Sin token → 403.
+- **Endpoints POST**: crear/editar (`/api/leads/`, `/api/leads/<id>/`), `bulk-estado`,
+  `bulk-delete`, `tally` (+/-), `import` (reemplaza todo). El historial y el cambio de
+  estado los arma el **servidor** (no el cliente); `responsable` mapeado del nombre al User.
+- **Mock**: `DataAPI.saveLead/bulkEstado/bulkDelete/bumpTally/importLeads`; `save`,
+  `applyBulkEstado`, `bulkDelete`, `bump`, `onFile` conectados con re-fetch. `loadTally`→`fetch`.
+- Verificado con CSRF real (test client). **Todas las escrituras persisten en MySQL.**
 
 ### 2026-07-28 — Paso 3: lecturas conectadas (`GET /api/leads/`)
 - Endpoint `GET /api/leads/` (JsonResponse, `login_required`) que serializa los `Lead`

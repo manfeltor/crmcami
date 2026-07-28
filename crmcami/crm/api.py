@@ -15,11 +15,11 @@ from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.http import require_http_methods
 
-from . import normalize
-from .models import Lead, LeadHistorial
+from . import choices, normalize
+from .models import Lead, LeadHistorial, TallyNoComercial
 
 User = get_user_model()
 
@@ -134,3 +134,115 @@ def lead_detail(request, pk):
         LeadHistorial.objects.create(lead=lead, ts=now, autor=request.user, texto=nc)
 
     return JsonResponse({"ok": True, "lead": _row(lead)})
+
+
+@login_required
+@require_http_methods(["POST"])
+@transaction.atomic
+def bulk_estado(request):
+    """POST {ids, estado} -> cambia el estado de los leads seleccionados."""
+    data = json.loads(request.body or "{}")
+    ids = data.get("ids") or []
+    nuevo = (data.get("estado") or "").strip()
+    if nuevo not in choices.ESTADOS:
+        return JsonResponse({"ok": False, "error": "estado invalido"}, status=400)
+
+    now = timezone.now()
+    afectados = 0
+    for lead in Lead.objects.filter(id__in=ids):
+        if lead.estado != nuevo:
+            LeadHistorial.objects.create(
+                lead=lead, ts=now, autor=request.user,
+                texto="Cambio de estado a " + nuevo,
+            )
+        lead.estado = nuevo
+        lead.sub_estado = ""
+        lead.estado_fecha = date.today()
+        lead.save()
+        afectados += 1
+    return JsonResponse({"ok": True, "afectados": afectados})
+
+
+@login_required
+@require_http_methods(["POST"])
+def bulk_delete(request):
+    """POST {ids} -> elimina los leads seleccionados (borra su historial en cascada)."""
+    data = json.loads(request.body or "{}")
+    ids = data.get("ids") or []
+    qs = Lead.objects.filter(id__in=ids)
+    count = qs.count()
+    qs.delete()
+    return JsonResponse({"ok": True, "eliminados": count})
+
+
+@login_required
+def tally(request):
+    """
+    GET  -> {tally: {fecha: {categoria: cantidad}}} (lo que consume el mock).
+    POST {fecha, categoria, delta} -> suma/resta al contador (nunca baja de 0).
+    """
+    if request.method == "POST":
+        data = json.loads(request.body or "{}")
+        fecha = parse_date((data.get("fecha") or "")[:10])
+        cat = (data.get("categoria") or "").strip()
+        try:
+            delta = int(data.get("delta") or 0)
+        except (TypeError, ValueError):
+            delta = 0
+        if not fecha or cat not in choices.NOCOM_CATS:
+            return JsonResponse({"ok": False, "error": "datos invalidos"}, status=400)
+        obj, _ = TallyNoComercial.objects.get_or_create(
+            fecha=fecha, categoria=cat, defaults={"cantidad": 0}
+        )
+        obj.cantidad = max(0, obj.cantidad + delta)
+        obj.save()
+        return JsonResponse({"ok": True, "cantidad": obj.cantidad})
+
+    out = {}
+    for t in TallyNoComercial.objects.all():
+        out.setdefault(t.fecha.isoformat(), {})[t.categoria] = t.cantidad
+    return JsonResponse({"tally": out})
+
+
+@login_required
+@require_http_methods(["POST"])
+@transaction.atomic
+def leads_import(request):
+    """
+    POST {rows: [...]} -> REEMPLAZA todos los leads por los importados.
+    Destructivo (como el mock). El parseo del Excel se hace en el cliente; aca
+    normalizamos y persistimos. Cada row viene con las claves del mock.
+    """
+    data = json.loads(request.body or "{}")
+    rows = data.get("rows") or []
+
+    LeadHistorial.objects.all().delete()
+    Lead.objects.all().delete()
+
+    creados = 0
+    for r in rows:
+        cliente = (r.get("cliente") or "").strip()
+        if not cliente:
+            continue
+        estado = normalize.map_estado(r.get("estado"))
+        lead = Lead.objects.create(
+            fecha=parse_date((r.get("fecha") or "")[:10]) or None,
+            cliente=cliente,
+            servicio=normalize.norm_servicio(r.get("servicio")),
+            mail=(r.get("mail") or "").strip()[:254],
+            telefono=str(r.get("telefono") or "").strip(),
+            origen=r.get("origen") or "",
+            sub_origen=r.get("subOrigen") or "",
+            responsable=_resolve_responsable(r.get("resp"), None),
+            estado=estado,
+            sub_estado=normalize.norm_sub_estado(estado, r.get("subEstado") or ""),
+            estado_fecha=parse_date((r.get("estadoFecha") or "")[:10]) or None,
+        )
+        for h in (r.get("historial") or []):
+            ts = parse_datetime(h.get("ts") or "") or timezone.now()
+            if timezone.is_naive(ts):
+                ts = timezone.make_aware(ts)
+            LeadHistorial.objects.create(lead=lead, ts=ts, texto=h.get("text") or "")
+        creados += 1
+
+    return JsonResponse({"ok": True, "importados": creados})

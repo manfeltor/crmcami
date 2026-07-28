@@ -240,7 +240,7 @@ function postJSON(url, body){
 const DataAPI = {
   loadLeads(){ return fetch("/api/leads/", {credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(d){ return (d.leads||[]).map(normalizeRow); }); },  // CONECTADO: GET /api/leads/
   loadMeta(){ return { lastImport:null, lastExport:null }; },
-  loadTally(){ return {}; },                                  // >>> BACKEND: GET /api/tally/
+  loadTally(){ return fetch("/api/tally/", {credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(d){ return d.tally||{}; }); },  // CONECTADO: GET /api/tally/
   loadShowTrend(){ return true; },
 
   // CONECTADO: crea (POST /api/leads/) o edita (POST /api/leads/<id>/).
@@ -254,6 +254,10 @@ const DataAPI = {
       subEstado:data.subEstado, nuevoComentario:data.nuevoComentario || ""
     });
   },
+  bulkEstado(ids, estado){ return postJSON("/api/leads/bulk-estado/", {ids:ids, estado:estado}); },  // CONECTADO
+  bulkDelete(ids){ return postJSON("/api/leads/bulk-delete/", {ids:ids}); },                          // CONECTADO
+  bumpTally(fecha, cat, delta){ return postJSON("/api/tally/", {fecha:fecha, categoria:cat, delta:delta}); },  // CONECTADO
+  importLeads(rows){ return postJSON("/api/leads/import/", {rows:rows}); },  // CONECTADO (reemplaza todo)
 };
 
 function Logo(){
@@ -428,7 +432,7 @@ function App(){
   const [sel, setSel] = useState({});
   const [bulkEstado, setBulkEstado] = useState("");
   const [notesLead, setNotesLead] = useState(null);
-  const [tally, setTally] = useState(function(){ return DataAPI.loadTally(); });
+  const [tally, setTally] = useState({});   // async: se carga en el useEffect de abajo
   const [view, setView] = useState("crm");
   const [nocomDate, setNocomDate] = useState(todayStr());
   const [showTrend, setShowTrend] = useState(function(){ return DataAPI.loadShowTrend(); });
@@ -440,7 +444,10 @@ function App(){
 
   // Paso 3 (sync -> async): carga inicial de leads desde el backend. rows
   // arranca en [] y se llena cuando responde GET /api/leads/.
-  useEffect(function(){ DataAPI.loadLeads().then(setRows).catch(function(){}); }, []);
+  useEffect(function(){
+    DataAPI.loadLeads().then(setRows).catch(function(){});
+    DataAPI.loadTally().then(setTally).catch(function(){});
+  }, []);
 
   const periodsAsc = useMemo(function(){
     const set = {}; rows.forEach(function(r){ const k = monthKey(r.fecha); if(k) set[k]=true; }); set[currentMonthKey()] = true;
@@ -486,7 +493,12 @@ function App(){
   const noviable = periodRows.filter(function(r){ return r.estado==="7. No viable"; }).length;
   const noavanzo = periodRows.filter(function(r){ return r.estado==="8. No avanzó"; }).length;
   const nocomTotalsForPeriod = (function(){ const o={}; NOCOM_CATS.forEach(function(c){ o[c]=0; }); Object.keys(tally).forEach(function(date){ if(period.length===0 || period.indexOf(monthKey(date))>=0){ const day=tally[date]||{}; NOCOM_CATS.forEach(function(c){ o[c]+=(day[c]||0); }); } }); return o; })();
-  const bump = function(cat, delta){ setTally(function(t){ const o=Object.assign({}, t); const day=Object.assign({}, o[nocomDate]||{}); day[cat]=Math.max(0,(day[cat]||0)+delta); o[nocomDate]=day; return o; }); };
+  const bump = function(cat, delta){
+    // CONECTADO: el server actualiza el contador (no baja de 0); re-consultamos el tally.
+    DataAPI.bumpTally(nocomDate, cat, delta)
+      .then(function(){ return DataAPI.loadTally().then(setTally); })
+      .catch(function(){});
+  };
   const trendData = useMemo(function(){
     if(!showTrend) return null;
     const set={}; periodRows.forEach(function(r){ const k=monthKey(r.fecha); if(k) set[k]=true; });
@@ -523,18 +535,18 @@ function App(){
   const clearSel = function(){ setSel({}); };
   const applyBulkEstado = function(){
     if(!bulkEstado) return;
-    const now = new Date().toISOString();
-    setRows(rows.map(function(r){
-      if(!sel[r.id]) return r;
-      let h = (r.historial||[]).slice();
-      if(r.estado!==bulkEstado){ h.unshift({ ts: now, text: "Cambio de estado a " + bulkEstado }); }
-      return normalizeRow(Object.assign({}, r, {estado:bulkEstado, estadoFecha:todayStr(), subEstado:"", historial:h}));
-    }));
+    // CONECTADO: el server cambia el estado y registra el historial.
+    DataAPI.bulkEstado(Object.keys(sel), bulkEstado)
+      .then(function(){ return DataAPI.loadLeads().then(setRows); })
+      .catch(function(){ alert("No se pudo aplicar el cambio masivo."); });
     clearSel(); setBulkEstado("");
   };
   const bulkDelete = function(){
     if(!confirm("Eliminar "+selCount+" lead(s) seleccionados? Esta accion no se puede deshacer.")) return;
-    setRows(rows.filter(function(r){ return !sel[r.id]; }));
+    // CONECTADO: el server borra los leads (y su historial en cascada).
+    DataAPI.bulkDelete(Object.keys(sel))
+      .then(function(){ return DataAPI.loadLeads().then(setRows); })
+      .catch(function(){ alert("No se pudo eliminar."); });
     clearSel();
   };
 
@@ -645,9 +657,15 @@ function App(){
         }
         if(!imported.length){ alert("No se encontraron filas con cliente en el archivo."); return; }
         if(!confirm("Se importaran "+imported.length+" leads y se reemplazaran los "+rows.length+" actuales. Continuar?")) return;
-        setRows(imported); clearSel();
-        setMeta(function(m){ return Object.assign({}, m, {lastImport:new Date().toISOString()}); });
-        alert("Importacion completa: "+imported.length+" leads cargados.");
+        // CONECTADO: el server reemplaza TODOS los leads por los importados; re-consultamos.
+        DataAPI.importLeads(imported)
+          .then(function(){ return DataAPI.loadLeads().then(setRows); })
+          .then(function(){
+            clearSel();
+            setMeta(function(m){ return Object.assign({}, m, {lastImport:new Date().toISOString()}); });
+            alert("Importacion completa: "+imported.length+" leads cargados.");
+          })
+          .catch(function(){ alert("No se pudo importar el archivo."); });
       }catch(err){ alert("Error al leer el archivo: "+err.message); }
       finally{ e.target.value=""; }
     };
