@@ -130,3 +130,7 @@ $RECYCLE.BIN/
 *.tmp
 *.orig
 .cache/
+
+# capturas de descubrimiento (phpMyAdmin, etc.) — no son parte de la app
+Screenshot*.png
+Screenshot*.jpg

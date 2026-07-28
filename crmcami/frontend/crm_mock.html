@@ -258,6 +258,7 @@ const DataAPI = {
   bulkDelete(ids){ return postJSON("/api/leads/bulk-delete/", {ids:ids}); },                          // CONECTADO
   bumpTally(fecha, cat, delta){ return postJSON("/api/tally/", {fecha:fecha, categoria:cat, delta:delta}); },  // CONECTADO
   importLeads(rows){ return postJSON("/api/leads/import/", {rows:rows}); },  // CONECTADO (reemplaza todo)
+  syncWP(force){ return postJSON("/api/integrations/sync/", {force: !!force}); },  // CONECTADO: pull WordPress
 };
 
 function Logo(){
@@ -447,6 +448,11 @@ function App(){
   useEffect(function(){
     DataAPI.loadLeads().then(setRows).catch(function(){});
     DataAPI.loadTally().then(setTally).catch(function(){});
+    // Paso 5: sync WP throttled al cargar (server-side decide si corre). Si trajo
+    // leads nuevos, recargo la tabla. Fail-open: si falla, no rompe nada.
+    DataAPI.syncWP(false).then(function(res){
+      if(res && res.importados > 0){ DataAPI.loadLeads().then(setRows); }
+    }).catch(function(){});
   }, []);
 
   const periodsAsc = useMemo(function(){
@@ -525,6 +531,14 @@ function App(){
     setShowForm(false); setEditing(null);
   };
   const openNew = function(){ setEditing(null); setShowForm(true); };
+  const syncManual = function(){
+    // Boton "Sincronizar": fuerza el pull de WP y recarga (accion, sin job async).
+    DataAPI.syncWP(true).then(function(res){
+      return DataAPI.loadLeads().then(setRows).then(function(){
+        alert("Sincronización lista. Leads nuevos: " + ((res && res.importados) || 0));
+      });
+    }).catch(function(){ alert("No se pudo sincronizar con el sitio web."); });
+  };
   const openEdit = function(r){ setEditing(r); setShowForm(true); };
   const toggleSort = function(k){ setSort(function(s){ return s.key===k ? {key:k,dir:s.dir==="asc"?"desc":"asc"} : {key:k,dir:"asc"}; }); };
 
@@ -696,6 +710,7 @@ function App(){
               </React.Fragment>
             )}
           </div>
+          <button onClick={syncManual} className="px-4 py-2.5 rounded-lg font-semibold text-sm border border-[var(--line)] hover:bg-gray-50">Sincronizar</button>
           <button onClick={generatePDF} className="px-4 py-2.5 rounded-lg font-semibold text-sm border border-[var(--line)] hover:bg-gray-50">Reporte PDF</button>
           <button onClick={openNew} className="px-4 py-2.5 rounded-lg text-white font-semibold text-sm shadow-sm hover:opacity-90" style={{background:"var(--red)"}}>+ Nuevo lead</button>
         </div>

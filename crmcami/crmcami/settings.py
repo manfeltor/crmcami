@@ -12,7 +12,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
-from .authvars import DB_NAME, DB_USR, DB_PASS, DB_HOST, DB_PORT, SECRET_KEY, DEBUG, APPHOST
+from .authvars import (DB_NAME, DB_USR, DB_PASS, DB_HOST, DB_PORT, SECRET_KEY,
+                       DEBUG, APPHOST, WPUSER, WPPASS, WPCUSTOMAPISUBM)
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -59,6 +60,7 @@ INSTALLED_APPS = [
     # apps propias
     'accounts',
     'crm',
+    'integrations',
 ]
 
 # Usuario custom (AbstractUser vacio). DEBE quedar definido ANTES del primer
@@ -69,6 +71,14 @@ AUTH_USER_MODEL = 'accounts.User'
 LOGIN_URL = 'login'                 # a donde te manda si no estas logueado
 LOGIN_REDIRECT_URL = 'home'         # a donde vas despues de loguear
 LOGOUT_REDIRECT_URL = 'login'       # a donde vas despues de salir
+
+# --- Integracion WordPress (pull de leads de Formidable) ---
+WP_API_URL = WPCUSTOMAPISUBM         # base del endpoint del plugin (.../form-submissions/)
+WP_USER = WPUSER
+WP_PASS = WPPASS
+WP_SYNC_CUTOFF = '2026-01-01'        # solo entran leads desde esta fecha
+WP_SYNC_THROTTLE_MINUTES = 15        # no re-sincroniza si paso menos que esto
+WP_SYNC_TIMEOUT = 20                 # seg (corto y fail-open)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

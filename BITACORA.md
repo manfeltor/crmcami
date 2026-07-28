@@ -9,7 +9,7 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 - [x] **Paso 2** — Modelo de datos (app `crm`: Lead / LeadHistorial / TallyNoComercial + normalización)
 - [x] **Paso 3** — Lecturas (GET) + conectar `DataAPI.loadLeads` a `fetch()`
 - [x] **Paso 4** — Escrituras (POST) + conectar `save`/`bulk`/`delete`/`bump`/`import`
-- [ ] **Paso 5** — Ingesta WordPress (pull, app `integrations`)
+- [x] **Paso 5** — Ingesta WordPress (pull, app `integrations`)
 - [ ] **Paso 6** — Deploy Cloud Run + Cloud SQL
 
 ## Arquitectura (resumen)
@@ -22,6 +22,17 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 ---
 
 ## Entradas
+
+### 2026-07-28 — Paso 5: ingesta WordPress (pull) — el CRM recibe leads del sitio
+- App `integrations`: `client` (urllib + Basic Auth con WP App Password), `mapper` (config por
+  form 3/4/5 — los campos difieren), `services` (sync con **marca de agua forward-only** + dedup por
+  `wp_entry_id` + resiliente a filas malas), `SyncState`, command `sync_wp_leads`.
+- Descubrimiento: `scripts/wp_discovery.py` (App Password, sin volcar PII). Forms activos = **3/4/5**
+  (Formidable). Servicio: form 3 del campo, form 4→Cross-docking, form 5→Almacenamiento. **Corte: 1-ene-2026.**
+- Disparo desde el SPA: **sync throttled al cargar** (15 min) + botón **"Sincronizar"** (force).
+  Todo por acción, **sin jobs async** (compatible con cold start / min-instances=0).
+- Verificado en vivo: **70 leads** desde enero; un lead borrado **NO reaparece** (forward-only);
+  bug `servicio` > 40 chars corregido (valida contra choices). Auth por App Password sirve también para prod.
 
 ### 2026-07-28 — Paso 4: escrituras conectadas (el CRM ya persiste)
 - **CSRF**: `@ensure_csrf_cookie` en la vista del SPA + helpers `getCookie`/`postJSON`

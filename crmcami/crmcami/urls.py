@@ -17,6 +17,7 @@ urlpatterns = [
 
     # --- API JSON del CRM (para las llamadas del DataAPI del SPA) ---
     path("api/", include("crm.urls")),
+    path("api/integrations/", include("integrations.urls")),
 
     # --- Home = el SPA ---
     # Sirve crm_mock.html crudo, detras de login_required (ver views.spa).

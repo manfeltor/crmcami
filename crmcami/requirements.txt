@@ -1,0 +1,10 @@
+# --- Núcleo ---
+Django==6.0.7
+mysqlclient==2.2.8          # driver MySQL (Cloud SQL en prod)
+python-decouple==3.8        # lee config/secretos de env (authvars.py)
+
+# --- Producción (Cloud Run) ---
+gunicorn>=23.0              # servidor WSGI (Django dev server NO va en prod)
+whitenoise>=6.8            # sirve los estáticos desde la app (Cloud Run = FS efímero)
+
+# Nota: NO usamos 'requests' — el cliente WP usa urllib (stdlib).
