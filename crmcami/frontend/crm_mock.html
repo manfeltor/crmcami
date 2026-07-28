@@ -224,11 +224,36 @@ function normalizeRow(r){
 //  memoria): save(), applyBulkEstado(), bulkDelete(), bump(), onFile().
 //  Buscar el marcador  // >>> BACKEND
 // ===================================================================
+// --- helpers para POST con CSRF (session auth de Django) ---
+function getCookie(name){
+  const parts = ("; " + document.cookie).split("; " + name + "=");
+  return parts.length === 2 ? parts.pop().split(";").shift() : "";
+}
+function postJSON(url, body){
+  return fetch(url, {
+    method:"POST", credentials:"same-origin",
+    headers:{ "Content-Type":"application/json", "X-CSRFToken":getCookie("csrftoken") },
+    body: JSON.stringify(body)
+  }).then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); });
+}
+
 const DataAPI = {
   loadLeads(){ return fetch("/api/leads/", {credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(d){ return (d.leads||[]).map(normalizeRow); }); },  // CONECTADO: GET /api/leads/
   loadMeta(){ return { lastImport:null, lastExport:null }; },
   loadTally(){ return {}; },                                  // >>> BACKEND: GET /api/tally/
   loadShowTrend(){ return true; },
+
+  // CONECTADO: crea (POST /api/leads/) o edita (POST /api/leads/<id>/).
+  // El server arma el historial y el estado_fecha; el cliente solo manda datos.
+  saveLead(data){
+    const url = data.id ? ("/api/leads/" + data.id + "/") : "/api/leads/";
+    return postJSON(url, {
+      cliente:data.cliente, fecha:data.fecha, servicio:data.servicio,
+      mail:data.mail, telefono:data.telefono, origen:data.origen,
+      subOrigen:data.subOrigen, resp:data.resp, estado:data.estado,
+      subEstado:data.subEstado, nuevoComentario:data.nuevoComentario || ""
+    });
+  },
 };
 
 function Logo(){
@@ -480,25 +505,11 @@ function App(){
   const toggleQuick = function(v){ setQuickFilter(function(c){ return c===v ? "" : v; }); };
 
   const save = function(data){
-    const now = new Date().toISOString();
-    let hist = Array.isArray(data.historial) ? data.historial.slice() : [];
-    const nc = (data.nuevoComentario||"").trim();
-    const merged = Object.assign({}, data, {historial: hist});
-    delete merged.nuevoComentario;
-    if(merged.id){
-      const prev = rows.find(function(r){ return r.id===merged.id; });
-      const estChanged = prev && (prev.estado!==merged.estado || (prev.subEstado||"")!==(merged.subEstado||""));
-      if(estChanged){ hist.unshift({ ts: now, text: "Cambio de estado a " + merged.estado + (merged.subEstado ? " (" + merged.subEstado + ")" : "") }); }
-      if(nc){ hist.unshift({ ts: now, text: nc }); }
-      const dateChanged = prev && prev.estado!==merged.estado;
-      const nd = normalizeRow(Object.assign({}, merged, {historial: hist, estadoFecha: dateChanged ? todayStr() : (merged.estadoFecha || (prev&&prev.estadoFecha))}));
-      setRows(rows.map(function(r){ return r.id===merged.id?nd:r; }));
-    } else {
-      hist.unshift({ ts: now, text: "Alta del lead · Estado: " + merged.estado + (merged.subEstado ? " (" + merged.subEstado + ")" : "") });
-      if(nc){ hist.unshift({ ts: now, text: nc }); }
-      const nd = normalizeRow(Object.assign({}, merged, {historial: hist, id:uid(), estadoFecha: merged.fecha || todayStr()}));
-      setRows([nd].concat(rows));
-    }
+    // CONECTADO: persiste en el backend y re-consulta para quedar consistente.
+    // El historial y el cambio de estado los arma el SERVIDOR, no el cliente.
+    DataAPI.saveLead(data)
+      .then(function(){ return DataAPI.loadLeads().then(setRows); })
+      .catch(function(){ alert("No se pudo guardar. Revisá la conexión y reintentá."); });
     setShowForm(false); setEditing(null);
   };
   const openNew = function(){ setEditing(null); setShowForm(true); };
