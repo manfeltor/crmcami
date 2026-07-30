@@ -1,7 +1,7 @@
 # CRM Intralog
 
 CRM comercial de **Intralog Argentina**, portado de una herramienta de un solo
-archivo HTML (React vibecodeado, sin backend) a una app **Django + MySQL**
+archivo HTML (React vbcoded, sin backend) a una app **Django + MySQL**
 lista para **Cloud Run + Cloud SQL**, con ingesta automática de leads desde el
 sitio en **WordPress**.
 
