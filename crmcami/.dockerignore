@@ -1,0 +1,10 @@
+# no copiar al contexto del build
+**/__pycache__/
+*.pyc
+*.pyo
+staticfiles/
+*.sqlite3
+.env
+.env.*
+.git/
+.gitignore

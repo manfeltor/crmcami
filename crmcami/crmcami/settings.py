@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+
+from decouple import config
 from .authvars import (DB_NAME, DB_USR, DB_PASS, DB_HOST, DB_PORT, SECRET_KEY,
                        DEBUG, APPHOST, WPUSER, WPPASS, WPCUSTOMAPISUBM)
 
@@ -31,7 +33,7 @@ DEBUG = DEBUG
 # HTTPS/cookies: seguras en prod, laxas en local (para poder loguear sobre http).
 CSRF_COOKIE_SECURE = not DEBUG       # cookie CSRF solo por HTTPS en prod
 SESSION_COOKIE_SECURE = not DEBUG    # cookie de sesion solo por HTTPS en prod
-SECURE_SSL_REDIRECT = not DEBUG      # forzar HTTPS en prod
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)  # override por env (ensayo local con DEBUG=False)
 
 # Cloud Run termina el TLS y reenvia por HTTP interno; este header le dice a
 # Django que la request original fue HTTPS (necesario para el redirect y las cookies secure).
@@ -82,6 +84,7 @@ WP_SYNC_TIMEOUT = 20                 # seg (corto y fail-open)
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # sirve estaticos (Cloud Run = FS efimero, sin nginx)
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -181,5 +184,16 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [
     # os.path.join(BASE_DIR, 'appinfo/templates/static'),
     os.path.join(BASE_DIR, 'static'),   # estaticos propios (logo, bundles JS...); static != templates
-    # os.path.join(BASE_DIR, r'media'),    
+    # os.path.join(BASE_DIR, r'media'),
 ]
+
+# Destino de collectstatic (WhiteNoise sirve desde aca en prod). Va en el build.
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# WhiteNoise: estaticos comprimidos + hasheados (cache-busting)
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
