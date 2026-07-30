@@ -10,7 +10,7 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 - [x] **Paso 3** — Lecturas (GET) + conectar `DataAPI.loadLeads` a `fetch()`
 - [x] **Paso 4** — Escrituras (POST) + conectar `save`/`bulk`/`delete`/`bump`/`import`
 - [x] **Paso 5** — Ingesta WordPress (pull, app `integrations`)
-- [ ] **Paso 6** — Deploy Cloud Run + Cloud SQL
+- [~] **Paso 6** — Deploy Cloud Run + Cloud SQL (imagen + ensayo local ✓; deploy a la nube lo hace el user)
 
 ## Arquitectura (resumen)
 - **Django + MySQL** (Cloud SQL en prod) + **Cloud Run**.
@@ -22,6 +22,18 @@ Registro narrativo de **qué se hizo y por qué**, para complementar el `git log
 ---
 
 ## Entradas
+
+### 2026-07-30 — Paso 6 (a/b): Dockerfile + WhiteNoise + docker-compose (ensayo local)
+- **WhiteNoise** en settings (middleware + `STATIC_ROOT` + `STORAGES` CompressedManifest). NO nginx:
+  Cloud Run ya es el reverse proxy/TLS; whitenoise cubre los estáticos. `SECURE_SSL_REDIRECT` y
+  `CSRF_TRUSTED_ORIGINS` override por env (para el ensayo local con DEBUG=False).
+- **Dockerfile** single-stage (sin Node — el SPA se sirve crudo): libs SO para mysqlclient,
+  `pip install`, `collectstatic` en build (creds dummy), gunicorn en `$PORT`.
+- **docker-compose.yml** = ensayo local (app en modo prod + MySQL en contenedor) = "mini Cloud Run".
+- **Verificado**: build OK (mysqlclient compila), migraciones **contra MySQL** OK, superuser +
+  gunicorn + `GET /login/` 200, `seed_demo` (9 leads). **Imagen deploy-ready.**
+- El deploy real a Cloud Run + Cloud SQL (Cloud SQL instance, Secret Manager, migrar por proxy,
+  `gcloud run deploy`) lo hace el user (tiene experiencia en GCP).
 
 ### 2026-07-28 — Paso 5: ingesta WordPress (pull) — el CRM recibe leads del sitio
 - App `integrations`: `client` (urllib + Basic Auth con WP App Password), `mapper` (config por

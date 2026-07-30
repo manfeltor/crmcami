@@ -1,0 +1,61 @@
+# Ensayo LOCAL del deploy: corre la imagen real (Dockerfile) en modo prod
+# (DEBUG=False, gunicorn, WhiteNoise) contra un MySQL en contenedor. Tu "mini Cloud Run".
+# NO es para Cloud Run (allá se despliega la imagen sola, y las migraciones van aparte).
+#
+#   docker compose up --build           # levanta db + app (migra + crea superuser)
+#   -> http://localhost:8080            # admin / admin1234
+#   docker compose exec web python manage.py seed_demo   # (opcional) datos demo
+#   docker compose down                 # apagar
+#
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: crm
+      MYSQL_USER: crm
+      MYSQL_PASSWORD: crm
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    # Para persistir la DB entre 'up' descomentá el volumen:
+    # volumes:
+    #   - crm_db:/var/lib/mysql
+
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: dev-only-not-a-secret
+      DEBUG: "False"                         # modo prod, igual que Cloud Run
+      SECURE_SSL_REDIRECT: "False"           # override: poder entrar por http local
+      DB_NAME: crm
+      DB_USR: crm
+      DB_PASS: crm
+      DB_HOST: db                            # <- el servicio MySQL de arriba
+      DB_PORT: "3306"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:8080"
+      # WP vacío: el sync no corre contra el WordPress real durante el ensayo
+      WPUSER: ""
+      WPPASS: ""
+      WPCUSTOMAPISUBM: ""
+      # superuser de dev (se crea solo si no existe)
+      DJANGO_SUPERUSER_USERNAME: admin
+      DJANGO_SUPERUSER_PASSWORD: admin1234
+      DJANGO_SUPERUSER_EMAIL: admin@example.com
+    # Command LOCAL: migra + crea superuser + gunicorn. (En Cloud Run se usa el CMD
+    # del Dockerfile —solo gunicorn— y las migraciones se corren aparte por proxy.)
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             (python manage.py createsuperuser --noinput || true) &&
+             exec gunicorn crmcami.wsgi:application --bind :8080 --workers 2 --threads 4 --timeout 60"
+    ports:
+      - "8080:8080"
+
+# volumes:
+#   crm_db:

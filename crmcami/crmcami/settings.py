@@ -40,7 +40,12 @@ SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # APPHOST = host de Cloud Run; se setea como env var recien cuando exista el servicio.
-CSRF_TRUSTED_ORIGINS = []
+# CSRF_TRUSTED_ORIGINS extra por env (coma-separado) — util para el ensayo local
+# (http://localhost:8080) sin tocar codigo.
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS', default='',
+    cast=lambda v: [s.strip() for s in v.split(',') if s.strip()],
+)
 if APPHOST:
     CSRF_TRUSTED_ORIGINS.append(f'https://{APPHOST}')
 
